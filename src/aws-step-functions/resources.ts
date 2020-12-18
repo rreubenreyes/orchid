@@ -12,14 +12,14 @@ export function pass(): IntermediateResource {
 }
 
 export const lambda = {
-    lnvoke: ({ functionName }: { functionName: string }): IntermediateResource => ({
+    invoke: ({ functionName }: { functionName: string }): IntermediateResource => ({
         resourceName: 'arn:aws:states:::lambda:invoke',
         resultPathIdentifier: 'lambdaResult',
         parameters: {
             FunctionName: functionName,
         }
     }),
-    lnvokeWaitForTaskToken: ({ functionName }: { functionName: string }): IntermediateResource => ({
+    invokeWaitForTaskToken: ({ functionName }: { functionName: string }): IntermediateResource => ({
         resourceName: 'arn:aws:states:::lambda:invoke.waitForTaskToken',
         resultPathIdentifier: 'lambdaResult',
         parameters: {

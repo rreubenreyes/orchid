@@ -4,7 +4,7 @@ import { StatesType } from '../../lib/aws-step-functions';
 
 import type * as SFN from '../../lib/aws-step-functions';
 import type { IntermediateResource } from './resources';
-import type { OrchidContext } from './state-machine';
+import type { OrchidContext, IndexedState } from './context';
 
 const { logger } = config;
 
@@ -20,8 +20,7 @@ export abstract class State {
         this.name = name;
     }
 
-    abstract index(context: OrchidContext): void;
-    abstract serialize(): SFN.StateNode;
+    abstract index(context: OrchidContext): IndexedState<SFN.StateNode>;
 }
 
 /**
@@ -83,35 +82,41 @@ export class Pass extends LiminalState {
         this._result = opts.result;
     }
 
-    index(context: OrchidContext): void {
+    index(context: OrchidContext): IndexedState<SFN.PassStateNode> {
         context.registerState({
             name: this.name,
             getOutput: (result: string) => {
-                const resultPath = `${this._outputPathPrefix}.${this._resource.resultPathIdentifier}.result.${result}`;
+                if (!this._result) {
+                    throw new Error(`State ${this.name} does not produce an output`);
+                }
+
+                const resultPath = `${this._outputPathPrefix}.${this._resource.resultPathIdentifier}.result`;
 
                 return `${resultPath}.${result}`
             }
         });
-    }
 
-    serialize(): SFN.PassStateNode {
-        const passStateNode: SFN.PassStateNode = {
-            Type: StatesType.Pass,
-            ...this._getNextOrEndClause(),
+        return {
+            serialize: (): SFN.PassStateNode => {
+                const passStateNode: SFN.PassStateNode = {
+                    Type: StatesType.Pass,
+                    ...this._getNextOrEndClause(),
+                }
+
+                if (this._parameters) {
+                    passStateNode.Parameters = this._parameters;
+                }
+
+                if (this._result) {
+                    const resultPath = `${this._outputPathPrefix}.${this._resource.resultPathIdentifier}.result`;
+
+                    passStateNode.Result = this._result;
+                    passStateNode.ResultPath = resultPath;
+                }
+
+                return passStateNode;
+            }
         }
-
-        if (this._parameters) {
-            passStateNode.Parameters = this._parameters;
-        }
-
-        if (this._result) {
-            const resultPath = `${this._outputPathPrefix}.${this._resource.resultPathIdentifier}.result`;
-
-            passStateNode.Result = this._result;
-            passStateNode.ResultPath = resultPath;
-        }
-
-        return passStateNode;
     }
 }
 
