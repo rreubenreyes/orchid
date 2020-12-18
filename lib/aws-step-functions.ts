@@ -38,7 +38,7 @@ export enum StatesType {
 }
 
 /**
- * All error types that are specific to AWS Step Functions. (State machines may throw errors
+ * All error types that are specific to AWS Step Functions. (StateNode machines may throw errors
  * which are NOT specific to AWS Step Functions.)
  *
  * https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html#error-handling-error-representation
@@ -57,7 +57,7 @@ export interface for a Step Functions state.
  *
  * https://states-language.net/spec.html#statetypes
  */
-export interface State {
+export interface StateNode {
     Type: StatesType;
     Comment?: string;
 }
@@ -81,7 +81,7 @@ export interface Retrier {
  */
 export interface Catcher {
     ErrorEquals: Array<StatesError | string>;
-    Next: State;
+    Next: StateNode;
     ResultPath?: string;
 }
 
@@ -90,15 +90,15 @@ export interface Catcher {
  *
  * https://states-language.net/spec.html#pass-state
  */
-export interface PassState extends State {
+export interface PassStateNode extends StateNode {
     Type: StatesType.Pass;
-    Next?: State;
+    Next?: string;
     End?: boolean;
     InputPath?: string;
     OutputPath?: string;
     ResultPath?: string;
     Result?: Serializable;
-    Parameters?: string;
+    Parameters?: Serializable;
 }
 
 /**
@@ -106,14 +106,14 @@ export interface PassState extends State {
  *
  * https://states-language.net/spec.html#task-state
  */
-export interface TaskState extends State {
+export interface TaskStateNode extends StateNode {
     Type: StatesType.Task;
-    Next?: State;
+    Next?: string;
     End?: boolean;
     InputPath?: string;
     OutputPath?: string;
     ResultPath?: string;
-    Parameters?: string;
+    Parameters?: Serializable;
     ResultSelector?: Record<string, string>;
     Retry?: Array<Retrier>;
     Catch?: Array<Catcher>;
@@ -176,12 +176,12 @@ export interface ChoiceRule {
  *
  * https://states-language.net/spec.html#choice-state
  */
-export interface ChoiceState extends State {
+export interface ChoiceStateNode extends StateNode {
     Type: StatesType.Choice;
     InputPath?: string;
     OutputPath?: string;
     Choices: Array<ChoiceRule>;
-    Default?: State;
+    Default?: StateNode;
 }
 
 /**
@@ -189,11 +189,11 @@ export interface ChoiceState extends State {
  *
  * https://states-language.net/spec.html#wait-state
  */
-export interface WaitState extends State {
+export interface WaitStateNode extends StateNode {
     Type: StatesType.Wait;
     InputPath?: string;
     OutputPath?: string;
-    Next?: State;
+    Next?: string;
     End?: boolean;
     Seconds?: number;
     Timestamp?: string;
@@ -207,7 +207,7 @@ export interface WaitState extends State {
  *
  * https://states-language.net/spec.html#succeed-state
  */
-export interface SucceedState extends State {
+export interface SucceedStateNode extends StateNode {
     Type: StatesType.Succeed;
 }
 
@@ -217,7 +217,7 @@ export interface SucceedState extends State {
  *
  * https://states-language.net/spec.html#fail-state
  */
-export interface FailState extends State {
+export interface FailStateNode extends StateNode {
     Type: StatesType.Fail;
     Cause?: string;
     Error?: string;
@@ -228,10 +228,10 @@ export interface FailState extends State {
  *
  * https://states-language.net/spec.html#toplevelfields
  */
-export interface StateMachine {
+export interface StateNodeMachine extends StateNode {
     Comment?: string;
     StartAt: string;
-    States: Record<string, State>;
+    States: Record<string, StateNode>;
     Version?: string;
     TimeoutSeconds?: string;
 }
@@ -241,11 +241,11 @@ export interface StateMachine {
  *
  * https://states-language.net/spec.html#map-state
  */
-export interface MapState {
+export interface MapStateNode extends StateNode {
     Type: StatesType.Map;
-    Next?: State;
+    Next?: string;
     End?: boolean;
-    Iterator: StateMachine;
+    Iterator: StateNodeMachine;
     ItemsPath?: string;
     MaxConcurrency?: number;
     ResultPath?: string;
@@ -259,11 +259,11 @@ export interface MapState {
  *
  * https://states-language.net/spec.html#parallel-state
  */
-export interface ParallelState {
+export interface ParallelStateNode extends StateNode {
     Type: StatesType.Parallel;
-    Next?: State;
+    Next?: string;
     End?: boolean;
-    Branches: Array<StateMachine>;
+    Branches: Array<StateNodeMachine>;
     MaxConcurrency?: number;
     ResultPath?: string;
     ResultSelector?: Record<string, string>;
