@@ -8,7 +8,9 @@ export interface OrchidContext {
     getState(stateName: string): OrchidIndex;
 }
 
-export interface IndexedState {
-    serialize<T>(): T;
+export type ReadonlyOrchidContext = Pick<OrchidContext, 'getState'>
+
+export interface IndexedState<T> {
+    serialize(): T;
 }
 
