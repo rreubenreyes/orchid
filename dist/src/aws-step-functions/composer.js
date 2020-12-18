@@ -1,8 +1,5 @@
-import _ from 'lodash';
-
-import { StatesType } from '../../lib/aws-step-functions';
-import type * as SFN from '../../lib/aws-step-functions';
-
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
 /**
  * Core rules for handling input/output processing:
  *
@@ -14,10 +11,8 @@ import type * as SFN from '../../lib/aws-step-functions';
 // }): unknown {
 //     const data = input;
 //     const statePath = opts.statePath;
-
 //     function getOutputOf(state,
 // }
-
 /**
  * combining pass state and task state below to illustrate what I'm trying to do here
  *
