@@ -1,4 +1,4 @@
-/* This project is meant to output JSONs which are valid Amazon States Language files.
+/* this project is meant to output jsons which are valid amazon states language files.
  *
  * See: https://states-language.net/spec.html
  */
@@ -14,6 +14,10 @@ export type SerializablePrimitive = string | number | null;
 export interface SerializableObject {
     [index: string]: SerializablePrimitive | SerializableObject;
     [index: number]: SerializablePrimitive | SerializableObject;
+}
+
+export interface SerializableRecord {
+    [index: string]: SerializablePrimitive | SerializableObject;
 }
 
 /**
@@ -114,7 +118,7 @@ export interface TaskStateNode extends StateNode {
     OutputPath?: string;
     ResultPath?: string;
     Parameters?: Serializable;
-    ResultSelector?: Record<string, string>;
+    ResultSelector?: string | SerializableRecord;
     Retry?: Array<Retrier>;
     Catch?: Array<Catcher>;
     Resource: string;
@@ -228,7 +232,7 @@ export interface FailStateNode extends StateNode {
  *
  * https://states-language.net/spec.html#toplevelfields
  */
-export interface StateNodeMachine extends StateNode {
+export interface StateMachine extends StateNode {
     Comment?: string;
     StartAt: string;
     States: Record<string, StateNode>;
@@ -245,11 +249,11 @@ export interface MapStateNode extends StateNode {
     Type: StatesType.Map;
     Next?: string;
     End?: boolean;
-    Iterator: StateNodeMachine;
+    Iterator: StateMachine;
     ItemsPath?: string;
     MaxConcurrency?: number;
     ResultPath?: string;
-    ResultSelector?: Record<string, string>;
+    ResultSelector?: string | SerializableRecord;
     Retry?: Array<Retrier>;
     Catch?: Array<Catcher>;
 }
@@ -263,10 +267,10 @@ export interface ParallelStateNode extends StateNode {
     Type: StatesType.Parallel;
     Next?: string;
     End?: boolean;
-    Branches: Array<StateNodeMachine>;
+    Branches: Array<StateMachine>;
     MaxConcurrency?: number;
     ResultPath?: string;
-    ResultSelector?: Record<string, string>;
+    ResultSelector?: string | SerializableRecord;
     Retry?: Array<Retrier>;
     Catch?: Array<Catcher>;
 }

@@ -18,32 +18,63 @@ import type * as SFN from '../../lib/aws-step-functions';
 //     function getOutputOf(state,
 // }
 
-class Pass {
-    public name: string;
-    private definition: Record<string, unknown>;
-
-    constructor(name: string, definition: {
-        parameters?: SFN.Serializable;
-        result?: SFN.Serializable;
-    }) {
-        this.name = name;
-        this.definition = definition;
-    }
-
-    serialize() {
-        const partiallySerializedDefinition = Object.fromEntries(
-            Object.entries(this.definition).map([k, v] => ([_.camelCase(k), v]))
-        )
-    }
-}
-
-
 /**
+ * combining pass state and task state below to illustrate what I'm trying to do here
  *
- * const firstState = new States.Pass('FirstState', {
+ * {
+ *  "FirstState": {
+ *      "Type": "Task"
+ *      "Resource": "arn:aws:states:::lambda:FetchAppUser.invoke"
+ *      "Result": {
+ *          "appuser": {
+ *              "humanId": "poop"
+ *          }
+ *      },
+ *      "ResultSelector": {
+ *          "human_id": "$.appuser.humanId"
+ *      }
+ *      "ResultPath": "$.data.FirstState.lambda.SomeFunction.result"
+ *  }
+ * }
  *
+ * input to second state should be:
+ * {
+ *  "input": "whatever was passed in the input"
+ *  "data": {
+ *      "FirstState": {
+ *          "lambda": {
+ *              "FetchAppUser": {
+ *                  "human_id": "poop"
+ *              }
+ *          }
+ *      }
+ *  }
+ *
+ * in order to access that value from the second state:
+ *
+ * "Parameters": {
+ *  "human_id.$": "$.data.FirstState.lambda.SomeFunction.result.human_id"
+ * }
+ *
+ * bottom line:
+ *
+ * - the developer should NEVER have to write a ResultPath
+ * - the developer should NEVER and CAN NEVER write an OutputPath
+ * - the developer will only have to worry about Parameters and ResultSelector
+ *
+ * some ideas:
+ *
+ * const userDataFetched = new State.Task('AppUserDataFetched', {
+ *      resource: invokeLambda({ arn: arn:aws:us-west-2:...:FetchAppUser }),
+ *      result: (lambdaResult) => ({
+ *          'human_id': lambdaResult.get('appuser.humanId')
+ *      }),
  * })
- * const secondState = new State().terminal();
  *
- * firstState.setDownstream(secondState)
+ * const doSomethingWithUserData = new State.Task('DoSomething', {
+ *      resource: invokeLambda({ arn: arn:aws:us-west-2:...:AnotherLambda }),
+ *      parameters: (context) => ({
+ *          'human_id': context.getState('AppUserDataFetched').getResult('human_id')
+ *      }),
+ * })
  */
