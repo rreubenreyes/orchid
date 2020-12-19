@@ -40,7 +40,7 @@ const emailSentToUser = new States.Task('EmailSentToUser', {
             first_name: context.getState(userDataFetched).getOutput('first_name'),
             last_name: context.getState(userDataFetched).getOutput('last_name'),
         })
-    })
+    }),
     output: (result) => ({
         success: result.get('success')
     })
