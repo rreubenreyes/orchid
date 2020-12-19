@@ -1,10 +1,11 @@
+import _ from 'lodash';
+
 import * as Resources from './resources';
 import config from '../../config';
 import { StatesType } from '../../lib/aws-step-functions';
-
 import type * as SFN from '../../lib/aws-step-functions';
 import type { IntermediateResource } from './resources';
-import type { OrchidContext, IndexedState } from './context';
+import type { OrchidContext, ReadonlyOrchidContext, IndexedState } from './context';
 
 const { logger } = config;
 
@@ -65,13 +66,13 @@ abstract class LiminalState extends State {
 export class Pass extends LiminalState {
     private _outputPathPrefix: string;
     private _resource: IntermediateResource;
-    private _parameters?: SFN.Serializable;
+    private _parameters?: (context: ReadonlyOrchidContext) => SFN.Serializable;
     private _result?: SFN.Serializable;
 
     constructor(name: string, opts: {
-        parameters?: SFN.Serializable;
+        parameters?: (context: ReadonlyOrchidContext) => SFN.Serializable;
         result?: SFN.Serializable;
-    }) {
+    } = {}) {
         super(name);
 
         logger.trace({ name, opts }, 'Created new Pass state');
@@ -104,7 +105,8 @@ export class Pass extends LiminalState {
                 }
 
                 if (this._parameters) {
-                    passStateNode.Parameters = this._parameters;
+                    const readonlyContext = _.pick(context, 'getState');
+                    passStateNode.Parameters = this._parameters(readonlyContext);
                 }
 
                 if (this._result) {

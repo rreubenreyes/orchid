@@ -6,7 +6,7 @@
 /**
  * The union of all primitive JavaScript types which can be serialized as valid AWS Step Functions values.
  */
-export type SerializablePrimitive = string | number | null;
+export type SerializablePrimitive = string | number | boolean | null;
 
 /**
  * Recursive type. Fields can be SerializablePrimitives or the defined type itself.
