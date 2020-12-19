@@ -19,7 +19,8 @@ const userDataFetched = new States.Task('UserDataFetched', {
     task: Resources.dynamoDb.getItem({
         tableName: 'users'
         parameters: (context) => ({
-            Key: { // This library does not provide a wrapper over the DynamoDB API (or any non-Step Functions APIs)!
+            /* This library does not provide a wrapper over the DynamoDB API (or any non-Step Functions APIs)! */
+            Key: {
                 user_id: { S: context.execution.getInput('user_id') } // Get the data that was input to the workflow's execution
             }
         }),
@@ -32,6 +33,7 @@ const userDataFetched = new States.Task('UserDataFetched', {
     })
 });
 
+/* Create a new Task state that invokes a Lambda function */
 const emailSentToUser = new States.Task('EmailSentToUser', {
     task: Resources.lambda.invoke({
         functionName: 'send_email',
@@ -45,11 +47,12 @@ const emailSentToUser = new States.Task('EmailSentToUser', {
     })
 });
 
+/* Create a "success" end state */
 const success = new States.Succeed('Success');
 
 userDataFetched.setDownstream(emailSentToUser); // The next state after UserDataFetched will be EmailSentToUser
 emailSentToUser.setDownstream(success);
-success.terminal();
+success.terminal(); // This will be the last state
 
 /* Create a new state machine from the states you've just defined */
 const stateMachine = StateMachine.create({
