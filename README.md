@@ -17,9 +17,8 @@ const { StateMachine, States, Resources } = require('orchid');
 /* Create a new Task state that gets an item from DynamoDB */
 const userDataFetched = new States.Task('UserDataFetched', {
     task: Resources.dynamoDb.getItem({
-        tableName: 'users'
+        tableName: 'users',
         parameters: (context) => ({
-            /* This library does not provide a wrapper over the DynamoDB API (or any non-Step Functions APIs)! */
             Key: {
                 user_id: { S: context.execution.getInput('user_id') } // Get the data that was input to the workflow's execution
             }
