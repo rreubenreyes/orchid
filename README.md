@@ -58,7 +58,7 @@ const stateMachine = StateMachine.create({
 });
 
 /* Get the state machine as JSON */
-const stateMachineJson = stateMachine
+const stateMachineJson = stateMachine.asJson()
 ```
 
 The JSON output of the above example is:
