@@ -1,10 +1,10 @@
 import _ from 'lodash';
 
 import * as Resources from './resources';
-import config from '../../config';
-import { StatesType } from '../../lib/aws-step-functions';
-import type * as SFN from '../../lib/aws-step-functions';
-import type { IntermediateResource } from './resources';
+import config from '../config';
+import { StatesType } from '../lib/aws-step-functions';
+import type * as SFN from '../lib/aws-step-functions';
+import type { PassResource } from './resources';
 import type { OrchidContext, ReadonlyOrchidContext, IndexedState } from './context';
 
 const { logger } = config;
@@ -65,29 +65,25 @@ abstract class LiminalState extends State {
 
 export class Pass extends LiminalState {
     private _outputPathPrefix: string;
-    private _resource: IntermediateResource;
-    private _parameters?: (context: ReadonlyOrchidContext) => SFN.Serializable;
     private _result?: SFN.Serializable;
+    private _task?: PassResource;
 
     constructor(name: string, opts: {
-        parameters?: (context: ReadonlyOrchidContext) => SFN.Serializable;
-        result?: SFN.Serializable;
+        task?: PassResource;
     } = {}) {
         super(name);
 
         logger.trace({ name, opts }, 'Created new Pass state');
 
         this._outputPathPrefix = `$.data.${name}`;
-        this._parameters = opts.parameters;
-        this._resource = Resources.pass();
-        this._result = opts.result;
+        this._task = opts.task;
     }
 
     index(context: OrchidContext): IndexedState<SFN.PassStateNode> {
         context.registerState({
             name: this.name,
             getOutput: (result: string) => {
-                if (!this._result) {
+                if (!this._task.result) {
                     throw new Error(`State ${this.name} does not produce an output`);
                 }
 

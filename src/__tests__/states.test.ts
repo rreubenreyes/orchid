@@ -1,7 +1,7 @@
 import * as States from '../states';
 import { createContext } from '../context';
 
-import { StatesType } from '../../../lib/aws-step-functions';
+import { StatesType } from '../../lib/aws-step-functions';
 
 describe('States', () => {
     describe('Pass', () => {
