@@ -61,36 +61,36 @@ In order to figure out how to traverse this workflow, we define our workflow wit
     "rules": [
       {
         "$and": [
-          { "$eq": [".bowl_placed", false] }
-          { "$eq": [".cereal_poured", false] }
+          { "$eq": [".bowl_placed", false] },
+          { "$eq": [".cereal_poured", false] },
           { "$eq": [".milk_poured", false] }
         ],
         "next": "place_bowl"
       },
       {
         "$and": [
-          { "$eq": [".bowl_placed", true] }
-          { "$eq": [".cereal_poured", false] }
+          { "$eq": [".bowl_placed", true] },
+          { "$eq": [".cereal_poured", false] },
           { "$eq": [".milk_poured", false] }
         ],
         "next": "pour_cereal"
       },
       {
         "$and": [
-          { "$eq": [".bowl_placed", true] }
-          { "$eq": [".cereal_poured", true] }
+          { "$eq": [".bowl_placed", true] },
+          { "$eq": [".cereal_poured", true] },
           { "$eq": [".milk_poured", false] }
         ],
         "next": "pour_milk"
       },
       {
         "$and": [
-          { "$eq": [".bowl_placed", true] }
-          { "$eq": [".cereal_poured", true] }
+          { "$eq": [".bowl_placed", true] },
+          { "$eq": [".cereal_poured", true] },
           { "$eq": [".milk_poured", true] }
         ],
         "next": "end"
-      },
+      }
     ]
   }
 ]
