@@ -47,15 +47,15 @@ Importantly, every workflow in Orchid has an _initial_ state. Continuing our exa
 {
   "state": {
     "bowl_placed": {
-      "type": boolean,
+      "type": "boolean",
       "initial": false
     },
     "cereal_poured": {
-      "type": boolean,
+      "type": "boolean",
       "initial": false
     },
     "milk_poured": {
-      "type": boolean,
+      "type": "boolean",
       "initial": false
     }
   }
