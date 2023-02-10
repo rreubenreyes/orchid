@@ -132,7 +132,7 @@ Because of our initial state, we know that the first traversal of our workflow w
 
 Now we're at the `place_bowl` node. Remember that we're making a bowl of cereal here; at this point, we want to actually _do_ something to make sure we make progress towards that goal. So, `place_bowl` will act as a _process node_. A __process__ in Orchid is the specific action that we take upon traveling to a particular node in our workflow. We can define processes in many ways, in any language we'd like, but the simplest way is via an _inline_ process directly in the workflow definition:
 
-```
+```json
 {
   "nodes": [
     {
@@ -165,7 +165,7 @@ Importantly, __emitting the `bowl_placed` event _does not_ directly update the w
 
 A __state updater__ is a special type of process which may never emit any events. Its sole purpose, as its name suggests, is to update workflow state in response to any events emitted by workflow processes. Like normal processes, state updaters can (and, for the most part, are) be written in any language using complex logic. However, it's still possible to write inline state updaters directly in the workflow definition. For demonstration purposes, we will do just that.
 
-```
+```json
 {
   "updater": {
     "type": "inline",
