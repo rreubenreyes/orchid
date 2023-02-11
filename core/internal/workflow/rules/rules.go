@@ -98,7 +98,7 @@ func lt(r Rule) (bool, error) {
 
 	a := r.Operands[0]
 	b := r.Operands[1]
-	switch r.Operands[0].(type) {
+	switch a.(type) {
 	case Int:
 		return int(a.(Int)) < int(b.(Int)), nil
 	case Float:
@@ -111,7 +111,7 @@ func lt(r Rule) (bool, error) {
 				return t1.Before(t2), nil
 			}
 		}
-		return false, fmt.Errorf("invalid comparison: cannot compare strings which are not date_time", a)
+		return false, fmt.Errorf("invalid comparison: cannot compare strings which are not date_time")
 	default:
 		return false, fmt.Errorf("invalid comparison: unsupported type: %T", a)
 	}
@@ -126,14 +126,14 @@ func gt(r Rule) (bool, error) {
 
 	a := r.Operands[0]
 	b := r.Operands[1]
-	switch r.Operands[0].(type) {
+	switch a.(type) {
 	case Int:
 		return int(a.(Int)) > int(b.(Int)), nil
 	case Float:
 		return float64(a.(Float)) > float64(b.(Float)), nil
 	case String:
 		if r.Format == "date_time" {
-			if reflect.TypeOf(a).Name() == "String" {
+			if reflect.ValueOf(a).Kind() == reflect.String {
 				t1, err1 := time.Parse(time.RFC3339, string(a.(String)))
 				t2, err2 := time.Parse(time.RFC3339, string(b.(String)))
 				if err1 == nil && err2 == nil {
@@ -141,7 +141,7 @@ func gt(r Rule) (bool, error) {
 				}
 			}
 		}
-		return false, fmt.Errorf("invalid comparison: cannot compare strings which are not date_time", a)
+		return false, fmt.Errorf("invalid comparison: cannot compare strings which are not date_time")
 	default:
 		return false, fmt.Errorf("invalid comparison: unsupported type: %T", a)
 	}
@@ -167,7 +167,7 @@ func gte(r Rule) (bool, error) {
 	return !inverse, nil
 }
 
-// evaluateAnd accepts a Rule and checks if all of its operands are also of type Rule.
+// and accepts a Rule and checks if all of its operands are also of type Rule.
 // If so, then this function evaluates logical AND over all operands. If not,
 // this function returns an error.
 func and(r Rule) (bool, error) {
@@ -190,7 +190,7 @@ func and(r Rule) (bool, error) {
 	return true, nil
 }
 
-// evaluateOr accepts a Rule and checks if all of its operands are also of type Rule.
+// or accepts a Rule and checks if all of its operands are also of type Rule.
 // If so, then this function evaluates logical OR over all operands. If not,
 // this function returns an error.
 func or(r Rule) (bool, error) {
@@ -213,7 +213,7 @@ func or(r Rule) (bool, error) {
 	return false, nil
 }
 
-// evaluateXor accepts a Rule and checks if all of its operands are also of type Rule.
+// xor accepts a Rule and checks if all of its operands are also of type Rule.
 // If so, then this function evaluates logical XOR over all operands. If not,
 // this function returns an error.
 func xor(r Rule) (bool, error) {
@@ -263,17 +263,17 @@ func contains(r Rule) (bool, error) {
 		return false, fmt.Errorf("invalid number of operands (%d) for operator %s", len(r.Operands), r.Operator)
 	}
 
-	lh := reflect.TypeOf(r.Operands[0])
-	rh := reflect.TypeOf(r.Operands[1])
-	if lh.Kind() != reflect.Slice || lh.Kind() != reflect.String {
+	a := reflect.TypeOf(r.Operands[0])
+	b := reflect.TypeOf(r.Operands[1])
+	if a.Kind() != reflect.Slice || a.Kind() != reflect.String {
 		return false, fmt.Errorf("invalid comparison: cannot use $contains on non-string or non-array values")
 	}
 
-	if lh.Kind() == reflect.String && rh.Kind() == reflect.String {
-		return strings.Contains(lh.String(), rh.String()), nil
+	if a.Kind() == reflect.String && b.Kind() == reflect.String {
+		return strings.Contains(a.String(), b.String()), nil
 	}
 
-	if lh.Kind() == reflect.Slice {
+	if a.Kind() == reflect.Slice {
 		for _, e := range r.Operands[0].(Complex) {
 			if e == r.Operands[1] {
 				return true, nil
@@ -294,8 +294,8 @@ func has(r Rule) (bool, error) {
 		return false, fmt.Errorf("invalid number of operands (%d) for operator %s", len(r.Operands), r.Operator)
 	}
 
-	lh := reflect.TypeOf(r.Operands[0])
-	if lh.Kind() == reflect.Map && lh.Key().Kind() == reflect.String {
+	a := reflect.TypeOf(r.Operands[0])
+	if a.Kind() == reflect.Map && a.Key().Kind() == reflect.String {
 		for _, e := range r.Operands[0].(Map) {
 			if e == r.Operands[1] {
 				return true, nil
