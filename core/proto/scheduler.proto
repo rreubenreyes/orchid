@@ -1,16 +1,34 @@
 syntax = "proto3";
 
-message Workflow {
+message StartExecutionRequest {
   string id = 1;
 }
 
-message Result {
+message StartExecutionResponse {
+  string id    = 1;
+  bool success = 2;
+}
+
+message ResumeExecutionRequest {
+  string id = 1;
+}
+
+message ResumeExecutionResponse {
+  string id    = 1;
+  bool success = 2;
+}
+
+message FailExecutionRequest {
+  string id = 1;
+}
+
+message FailExecutionResponse {
   string id    = 1;
   bool success = 2;
 }
 
 service Scheduler {
-  rpc StartExecution(Workflow)  returns (Result) {}
-  rpc ResumeExecution(Workflow) returns (Result) {}
-  rpc FailExecution(Workflow)   returns (Result) {}
+  rpc StartExecution(StartExecutionRequest)   returns (StartExecutionResponse) {}
+  rpc ResumeExecution(ResumeExecutionRequest) returns (ResumeExecutionResponse) {}
+  rpc FailExecution(FailExecutionRequest)     returns (FailExecutionResponse) {}
 }
