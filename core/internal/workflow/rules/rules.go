@@ -7,9 +7,6 @@ import (
 	"time"
 )
 
-type Operator string
-type Format string
-
 const (
 	Equals            Operator = "$eq"
 	LessThan          Operator = "$lt"
@@ -26,54 +23,154 @@ const (
 	DateTime Format = "date_time"
 )
 
+type Operator string
+type Format string
+
+type Int int
+type Float float64
+type String string
+type Bool bool
+type Complex []Operable
+type Map map[string]Operable
+
+type Operable interface {
+	isOperable()
+}
+
 type Rule struct {
 	Format   Format
 	Operator Operator
-	Operands []any
+	Operands []Operable
 }
+
+func (Int) isOperable()     {}
+func (Float) isOperable()   {}
+func (String) isOperable()  {}
+func (Bool) isOperable()    {}
+func (Complex) isOperable() {}
+func (Map) isOperable()     {}
+func (Rule) isOperable()    {}
 
 func Evaluate(r Rule) (bool, error) {
 	switch r.Operator {
 	case Equals:
-		return evaluateEquals(r)
+		return eq(r)
 	case LessThan:
-		return evaluateLessThan(r)
+		return lt(r)
 	case GreaterThan:
-		return evaluateGreaterThan(r)
+		return gt(r)
 	case LessThanEquals:
-		return evaluateLessThanEquals(r)
+		return lte(r)
 	case GreaterThanEquals:
-		return evaluateGreaterThanEquals(r)
+		return gte(r)
 	case Contains:
-		return evaluateContains(r)
+		return contains(r)
 	case And:
-		return evaluateAnd(r)
+		return and(r)
 	case Or:
-		return evaluateOr(r)
+		return or(r)
 	case Xor:
-		return evaluateXor(r)
+		return xor(r)
 	case Not:
-		return evaluateNot(r)
+		return not(r)
 	case Has:
-		return evaluateHas(r)
+		return has(r)
 	default:
 		return false, fmt.Errorf("unknown operator \"%s\"", r.Operator)
 	}
 }
 
-// evaluateEquals evaluates the quality operation. This function expects
+// eq evaluates the equality operation. This function expects
 // a binary expression. If this is not the case, this function returns an error.
-func evaluateEquals(r Rule) (bool, error) {
+func eq(r Rule) (bool, error) {
 	if len(r.Operands) != 2 {
 		return false, fmt.Errorf("invalid number of operands (%d) for operator %s", len(r.Operands), r.Operator)
 	}
 	return r.Operands[0] == r.Operands[1], nil
 }
 
+// lt evaluates the "less than" operation. This function expects
+// a binary expression. If this is not the case, this function returns an error.
+func lt(r Rule) (bool, error) {
+	if len(r.Operands) != 2 {
+		return false, fmt.Errorf("invalid number of operands (%d) for operator %s", len(r.Operands), r.Operator)
+	}
+
+	a := r.Operands[0]
+	b := r.Operands[1]
+	switch r.Operands[0].(type) {
+	case Int:
+		return int(a.(Int)) < int(b.(Int)), nil
+	case Float:
+		return float64(a.(Float)) < float64(b.(Float)), nil
+	case String:
+		if r.Format == "date_time" {
+			t1, err1 := time.Parse(time.RFC3339, string(a.(String)))
+			t2, err2 := time.Parse(time.RFC3339, string(b.(String)))
+			if err1 == nil && err2 == nil {
+				return t1.Before(t2), nil
+			}
+		}
+		return false, fmt.Errorf("invalid comparison: cannot compare strings which are not date_time", a)
+	default:
+		return false, fmt.Errorf("invalid comparison: unsupported type: %T", a)
+	}
+}
+
+// lt evaluates the "greater than" operation. This function expects
+// a binary expression. If this is not the case, this function returns an error.
+func gt(r Rule) (bool, error) {
+	if len(r.Operands) != 2 {
+		return false, fmt.Errorf("invalid number of operands (%d) for operator %s", len(r.Operands), r.Operator)
+	}
+
+	a := r.Operands[0]
+	b := r.Operands[1]
+	switch r.Operands[0].(type) {
+	case Int:
+		return int(a.(Int)) > int(b.(Int)), nil
+	case Float:
+		return float64(a.(Float)) > float64(b.(Float)), nil
+	case String:
+		if r.Format == "date_time" {
+			if reflect.TypeOf(a).Name() == "String" {
+				t1, err1 := time.Parse(time.RFC3339, string(a.(String)))
+				t2, err2 := time.Parse(time.RFC3339, string(b.(String)))
+				if err1 == nil && err2 == nil {
+					return t1.After(t2), nil
+				}
+			}
+		}
+		return false, fmt.Errorf("invalid comparison: cannot compare strings which are not date_time", a)
+	default:
+		return false, fmt.Errorf("invalid comparison: unsupported type: %T", a)
+	}
+}
+
+// evaluateLessThanEquals evaluates the less than or equals operation by negating
+// the result of evaluating the greater than operation.
+func lte(r Rule) (bool, error) {
+	inverse, err := gte(r)
+	if err != nil {
+		return false, err
+	}
+	return !inverse, nil
+}
+
+// evaluateGreaterThanEquals evaluates the less than or equals operation by negating
+// the result of evaluating the less than operation.
+func gte(r Rule) (bool, error) {
+	inverse, err := lte(r)
+	if err != nil {
+		return false, err
+	}
+	return !inverse, nil
+}
+
 // evaluateAnd accepts a Rule and checks if all of its operands are also of type Rule.
 // If so, then this function evaluates logical AND over all operands. If not,
 // this function returns an error.
-func evaluateAnd(r Rule) (bool, error) {
+func and(r Rule) (bool, error) {
 	for i, subrule := range r.Operands {
 		valueType := reflect.TypeOf(subrule)
 		ruleType := reflect.TypeOf(Rule{})
@@ -96,7 +193,7 @@ func evaluateAnd(r Rule) (bool, error) {
 // evaluateOr accepts a Rule and checks if all of its operands are also of type Rule.
 // If so, then this function evaluates logical OR over all operands. If not,
 // this function returns an error.
-func evaluateOr(r Rule) (bool, error) {
+func or(r Rule) (bool, error) {
 	for i, subrule := range r.Operands {
 		valueType := reflect.TypeOf(subrule)
 		ruleType := reflect.TypeOf(Rule{})
@@ -119,7 +216,7 @@ func evaluateOr(r Rule) (bool, error) {
 // evaluateXor accepts a Rule and checks if all of its operands are also of type Rule.
 // If so, then this function evaluates logical XOR over all operands. If not,
 // this function returns an error.
-func evaluateXor(r Rule) (bool, error) {
+func xor(r Rule) (bool, error) {
 	ok := false
 	for i, subrule := range r.Operands {
 		valueType := reflect.TypeOf(subrule)
@@ -143,9 +240,9 @@ func evaluateXor(r Rule) (bool, error) {
 	return ok, nil
 }
 
-// evaluateNot accepts a Rule and checks if it has a single Operand of type Rule.
+// not accepts a Rule and checks if it has a single Operand of type Rule.
 // If so, then this function negates the Operand. If not, this function returns an error.
-func evaluateNot(r Rule) (bool, error) {
+func not(r Rule) (bool, error) {
 	if len(r.Operands) != 1 {
 		return false, fmt.Errorf("invalid number of operands (%d) for operator %s", len(r.Operands), r.Operator)
 	}
@@ -158,105 +255,10 @@ func evaluateNot(r Rule) (bool, error) {
 	return result, nil
 }
 
-// evaluateLessThan evaluates the less than operation. This function expects
-// a binary expression. If this is not the case, this function returns an error.
-//
-// If operands are of incompatible type, the evaluation returns false with no error.
-// If operating on strings of format "date_time", then this function compares the timestamps
-// represented by both values.
-func evaluateLessThan(r Rule) (bool, error) {
-	if len(r.Operands) != 2 {
-		return false, fmt.Errorf("invalid number of operands (%d) for operator %s", len(r.Operands), r.Operator)
-	}
-
-	lh := reflect.ValueOf(r.Operands[0])
-	rh := reflect.ValueOf(r.Operands[1])
-
-	if lh.Kind() == reflect.Int && rh.Kind() == reflect.Int {
-		return lh.Int() < rh.Int(), nil
-	}
-	if lh.Kind() == reflect.Float64 && rh.Kind() == reflect.Float64 {
-		return lh.Float() < rh.Float(), nil
-	}
-	if lh.Kind() == reflect.String && rh.Kind() == reflect.String {
-		if r.Format == "date_time" {
-			timeA, err := time.Parse(time.RFC3339, lh.String())
-			if err != nil {
-				return false, err
-			}
-			timeB, err := time.Parse(time.RFC3339, rh.String())
-			if err != nil {
-				return false, err
-			}
-
-			return timeA.Before(timeB), nil
-		}
-		return lh.String() < rh.String(), nil
-	}
-	return false, nil
-}
-
-// evaluateGreaterThan evaluates the greater than operation. This function expects
-// a binary expression. If this is not the case, this function returns an error.
-//
-// If operands are of incompatible type, the evaluation returns false with no error.
-// If operating on strings of format "date_time", then this function compares the timestamps
-// represented by both values.
-func evaluateGreaterThan(r Rule) (bool, error) {
-	if len(r.Operands) != 2 {
-		return false, fmt.Errorf("invalid number of operands (%d) for operator %s", len(r.Operands), r.Operator)
-	}
-
-	lh := reflect.ValueOf(r.Operands[0])
-	rh := reflect.ValueOf(r.Operands[1])
-	if lh.Kind() == reflect.Int && rh.Kind() == reflect.Int {
-		return lh.Int() > rh.Int(), nil
-	}
-	if lh.Kind() == reflect.Float64 && rh.Kind() == reflect.Float64 {
-		return lh.Float() > rh.Float(), nil
-	}
-	if lh.Kind() == reflect.String && rh.Kind() == reflect.String {
-		if r.Format == "date_time" {
-			timeA, err := time.Parse(time.RFC3339, lh.String())
-			if err != nil {
-				return false, err
-			}
-			timeB, err := time.Parse(time.RFC3339, rh.String())
-			if err != nil {
-				return false, err
-			}
-
-			return timeA.After(timeB), nil
-		}
-		return lh.String() > rh.String(), nil
-	}
-	return false, nil
-}
-
-// evaluateLessThanEquals evaluates the less than or equals operation by negating
-// the result of evaluating the greater than operation.
-func evaluateLessThanEquals(r Rule) (bool, error) {
-	inverse, err := evaluateGreaterThan(r)
-	if err != nil {
-		return false, err
-	}
-	return !inverse, nil
-}
-
-// evaluateGreaterThanEquals evaluates the less than or equals operation by negating
-// the result of evaluating the less than operation.
-func evaluateGreaterThanEquals(r Rule) (bool, error) {
-	inverse, err := evaluateLessThan(r)
-	if err != nil {
-		return false, err
-	}
-	return !inverse, nil
-}
-
-// evaluateContains checks if a left-hand operand of type string or []any contains
+// contains checks if a left-hand operand of type string or []any contains
 // the right-hand operand. If thte left-hand operand is not of those types,
 // this function returns false with an error.
-func evaluateContains(r Rule) (bool, error) {
+func contains(r Rule) (bool, error) {
 	if len(r.Operands) != 2 {
 		return false, fmt.Errorf("invalid number of operands (%d) for operator %s", len(r.Operands), r.Operator)
 	}
@@ -272,7 +274,7 @@ func evaluateContains(r Rule) (bool, error) {
 	}
 
 	if lh.Kind() == reflect.Slice {
-		for _, e := range r.Operands[0].([]any) {
+		for _, e := range r.Operands[0].(Complex) {
 			if e == r.Operands[1] {
 				return true, nil
 			}
@@ -284,17 +286,17 @@ func evaluateContains(r Rule) (bool, error) {
 	return false, fmt.Errorf("invalid comparison; first operand must be an array or string")
 }
 
-// evaluateHas checks if a left-hand operand of type map[string]any
+// has checks if a left-hand operand of type map[string]any
 // the right-hand operand. If thte left-hand operand is not of that type,
 // this function returns false with an error.
-func evaluateHas(r Rule) (bool, error) {
+func has(r Rule) (bool, error) {
 	if len(r.Operands) != 2 {
 		return false, fmt.Errorf("invalid number of operands (%d) for operator %s", len(r.Operands), r.Operator)
 	}
 
 	lh := reflect.TypeOf(r.Operands[0])
 	if lh.Kind() == reflect.Map && lh.Key().Kind() == reflect.String {
-		for _, e := range r.Operands[0].(map[string]any) {
+		for _, e := range r.Operands[0].(Map) {
 			if e == r.Operands[1] {
 				return true, nil
 			}
