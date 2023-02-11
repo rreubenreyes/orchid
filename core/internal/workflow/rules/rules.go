@@ -284,7 +284,7 @@ func evaluateContains(r Rule) (bool, error) {
 	return false, fmt.Errorf("invalid comparison; first operand must be an array or string")
 }
 
-// evaluateContains checks if a left-hand operand of type map[string]any
+// evaluateHas checks if a left-hand operand of type map[string]any
 // the right-hand operand. If thte left-hand operand is not of that type,
 // this function returns false with an error.
 func evaluateHas(r Rule) (bool, error) {
