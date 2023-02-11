@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+message Workflow {
+  string id = 1;
+}
+
+message Result {
+  string id    = 1;
+  bool success = 2;
+}
+
+service Scheduler {
+  rpc StartExecution(Workflow)  returns (Result) {}
+  rpc ResumeExecution(Workflow) returns (Result) {}
+  rpc FailExecution(Workflow)   returns (Result) {}
+}
