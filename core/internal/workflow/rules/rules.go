@@ -150,7 +150,7 @@ func gt(r Rule) (bool, error) {
 // evaluateLessThanEquals evaluates the less than or equals operation by negating
 // the result of evaluating the greater than operation.
 func lte(r Rule) (bool, error) {
-	inverse, err := gte(r)
+	inverse, err := gt(r)
 	if err != nil {
 		return false, err
 	}
@@ -160,7 +160,7 @@ func lte(r Rule) (bool, error) {
 // evaluateGreaterThanEquals evaluates the less than or equals operation by negating
 // the result of evaluating the less than operation.
 func gte(r Rule) (bool, error) {
-	inverse, err := lte(r)
+	inverse, err := lt(r)
 	if err != nil {
 		return false, err
 	}
