@@ -1,5 +1,4 @@
-// package state
-package main
+package state
 
 import (
 	"encoding/json"
@@ -7,9 +6,9 @@ import (
 )
 
 type Field struct {
-	Type    string `json:"type,omitempty"`
-	Initial any    `json:"initial,omitempty"`
-	Value   any    `json:"value,omitempty"`
+	Type     string `json:"type"`
+	Value    any    `json:"value,omitempty"`
+	Nullable bool   `json:"nullable,omitempty"`
 }
 
 type State map[string]Field
@@ -24,61 +23,74 @@ func (f *Field) UnmarshalJSON(data []byte) error {
 	var ok bool
 
 	// check declared type is valid
-	f.Type, ok = m["type"].(string)
-	if !ok {
+	if f.Type, ok = m["type"].(string); !ok {
 		return fmt.Errorf("invalid type: %s", f.Type)
+	}
+
+	// if `nullable` is missing or not boolean, assume it is false
+	if f.Nullable, ok = m["nullable"].(bool); !ok {
+		f.Nullable = false
 	}
 
 	switch f.Type {
 	case "number":
-		if f.Initial, ok = m["initial"].(float64); ok {
-			return nil
+		if f.Value, ok = m["value"].(float64); !ok {
+			if f.Nullable && f.Value == nil {
+				f.Value = 0
+				return nil
+			}
+
+			f.Value = 0 // set value to expected type
+			return fmt.Errorf("expected number, got %T", m["value"])
 		}
-		f.Initial = 0
-		return fmt.Errorf("expected number, got %T", m["initial"])
+		return nil
 	case "string":
-		if f.Initial, ok = m["initial"].(string); ok {
-			return nil
+		if f.Value, ok = m["initial"].(string); !ok {
+			if f.Nullable && f.Value == nil {
+				f.Value = 0
+				return nil
+			}
+
+			f.Value = ""
+			return fmt.Errorf("expected string, got %T", m["value"])
 		}
-		f.Initial = ""
-		return fmt.Errorf("expected string, got %T", m["initial"])
+		return nil
 	case "bool":
-		if f.Initial, ok = m["initial"].(bool); ok {
-			return nil
+		if f.Value, ok = m["initial"].(bool); !ok {
+			if f.Nullable && f.Value == nil {
+				f.Value = 0
+				return nil
+			}
+
+			f.Value = false
+			return fmt.Errorf("expected bool, got %T", m["value"])
 		}
-		f.Initial = false
-		return fmt.Errorf("expected bool, got %T", m["initial"])
+		return nil
+
+		// TODO: recursively unmarshal complex fields
 	case "list":
-		if f.Initial, ok = m["initial"].([]any); ok {
-			return nil
+		if f.Value, ok = m["initial"].([]any); !ok {
+			if f.Nullable && f.Value == nil {
+				f.Value = 0
+				return nil
+			}
+
+			f.Value = nil
+			return fmt.Errorf("expected list, got %T", m["value"])
 		}
-		f.Initial = nil
-		return fmt.Errorf("expected list, got %T", m["initial"])
+		return nil
 	case "map":
-		if f.Initial, ok = m["initial"].(map[string]any); ok {
-			return nil
+		if f.Value, ok = m["initial"].(map[string]any); !ok {
+			if f.Nullable && f.Value == nil {
+				f.Value = 0
+				return nil
+			}
+
+			f.Value = nil
+			return fmt.Errorf("expected map, got %T", m["value"])
 		}
-		f.Initial = nil
-		return fmt.Errorf("expected map, got %T", m["initial"])
+		return nil
 	default:
 		return fmt.Errorf("invalid type: %s", f.Type)
 	}
-}
-
-func main() {
-	// XXX: below is test code, remove if it's sitll here
-	var s State
-	jsonStr := `{
-		"field0": {
-			"type": "number",
-			"initial": 0
-		}
-	}
-	`
-
-	err := json.Unmarshal([]byte(jsonStr), &s)
-	if err != nil {
-		return
-	}
-	fmt.Printf("e: %+v\n", s)
 }
