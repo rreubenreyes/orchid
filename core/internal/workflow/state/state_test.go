@@ -5,11 +5,6 @@ import (
 )
 
 func TestField_UnmarshalJSON(t *testing.T) {
-	type fields struct {
-		Type     string
-		Value    any
-		Nullable bool
-	}
 	type args struct {
 		data []byte
 	}
@@ -18,6 +13,9 @@ func TestField_UnmarshalJSON(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
+		{"invalid type",
+			args{[]byte(`{"type":"invalid","value":1,"nullable":false}`)}, true},
+
 		{"number (non-nullable, not null)",
 			args{[]byte(`{"type":"number","value":1,"nullable":false}`)}, false},
 		{"number (non-nullable, is null)",
