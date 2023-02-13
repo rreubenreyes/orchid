@@ -25,15 +25,8 @@ func (f *Field) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	// handle nullable case where provided Value is null or absent
-	if a.Nullable && (string(a.Value) == "null" || len(a.Value) == 0) {
-		if string(a.Value) == "null" {
-			fmt.Printf("this is the explicit null case")
-		}
-		if len(a.Value) == 0 {
-			fmt.Printf("this is the absent case")
-
-		}
+	// handle nullable case where provided Value is null
+	if a.Nullable && string(a.Value) == "null" {
 		f.Value = nil
 
 		return nil
