@@ -1,4 +1,4 @@
-package rules
+package workflow
 
 import (
 	"fmt"
@@ -26,7 +26,6 @@ const (
 type Operator string
 type Format string
 
-type Int int
 type Float float64
 type String string
 type Bool bool
@@ -43,7 +42,6 @@ type Rule struct {
 	Operands []Operable
 }
 
-func (Int) isOperable()     {}
 func (Float) isOperable()   {}
 func (String) isOperable()  {}
 func (Bool) isOperable()    {}
@@ -80,12 +78,27 @@ func Evaluate(r Rule) (bool, error) {
 	}
 }
 
+func isSameKind(a Operable, b Operable, constraint reflect.Kind) bool {
+	return reflect.ValueOf(a).Kind() == reflect.ValueOf(b).Kind() &&
+		reflect.ValueOf(a).Kind() == constraint
+}
+
 // eq evaluates the equality operation. This function expects
 // a binary expression. If this is not the case, this function returns an error.
 func eq(r Rule) (bool, error) {
 	if len(r.Operands) != 2 {
 		return false, fmt.Errorf("invalid number of operands (%d) for operator %s", len(r.Operands), r.Operator)
 	}
+
+	a := r.Operands[0]
+	b := r.Operands[1]
+	if (reflect.ValueOf(a).Kind() == reflect.Slice) ||
+		(reflect.ValueOf(b).Kind() == reflect.Slice) ||
+		(reflect.ValueOf(a).Kind() == reflect.Map) ||
+		(reflect.ValueOf(b).Kind() == reflect.Map) {
+		return false, fmt.Errorf("invalid comparison: unsupported types: [%T, %T]", a, b)
+	}
+
 	return r.Operands[0] == r.Operands[1], nil
 }
 
@@ -98,12 +111,16 @@ func lt(r Rule) (bool, error) {
 
 	a := r.Operands[0]
 	b := r.Operands[1]
-	switch a.(type) {
-	case Int:
-		return int(a.(Int)) < int(b.(Int)), nil
-	case Float:
+	if (reflect.ValueOf(a).Kind() == reflect.Slice) ||
+		(reflect.ValueOf(b).Kind() == reflect.Slice) ||
+		(reflect.ValueOf(a).Kind() == reflect.Map) ||
+		(reflect.ValueOf(b).Kind() == reflect.Map) {
+		return false, fmt.Errorf("invalid comparison: unsupported types: [%T, %T]", a, b)
+	}
+	if isSameKind(a, b, reflect.Float64) {
 		return float64(a.(Float)) < float64(b.(Float)), nil
-	case String:
+	}
+	if isSameKind(a, b, reflect.String) {
 		if r.Format == "date_time" {
 			t1, err1 := time.Parse(time.RFC3339, string(a.(String)))
 			t2, err2 := time.Parse(time.RFC3339, string(b.(String)))
@@ -112,12 +129,12 @@ func lt(r Rule) (bool, error) {
 			}
 		}
 		return false, fmt.Errorf("invalid comparison: cannot compare strings which are not date_time")
-	default:
-		return false, fmt.Errorf("invalid comparison: unsupported type: %T", a)
 	}
+
+	return false, nil
 }
 
-// lt evaluates the "greater than" operation. This function expects
+// gt evaluates the "greater than" operation. This function expects
 // a binary expression. If this is not the case, this function returns an error.
 func gt(r Rule) (bool, error) {
 	if len(r.Operands) != 2 {
@@ -126,45 +143,91 @@ func gt(r Rule) (bool, error) {
 
 	a := r.Operands[0]
 	b := r.Operands[1]
-	switch a.(type) {
-	case Int:
-		return int(a.(Int)) > int(b.(Int)), nil
-	case Float:
+	if (reflect.ValueOf(a).Kind() == reflect.Slice) ||
+		(reflect.ValueOf(b).Kind() == reflect.Slice) ||
+		(reflect.ValueOf(a).Kind() == reflect.Map) ||
+		(reflect.ValueOf(b).Kind() == reflect.Map) {
+		return false, fmt.Errorf("invalid comparison: unsupported types: [%T, %T]", a, b)
+	}
+	if isSameKind(a, b, reflect.Float64) {
 		return float64(a.(Float)) > float64(b.(Float)), nil
-	case String:
+	}
+	if isSameKind(a, b, reflect.String) {
 		if r.Format == "date_time" {
-			if reflect.ValueOf(a).Kind() == reflect.String {
-				t1, err1 := time.Parse(time.RFC3339, string(a.(String)))
-				t2, err2 := time.Parse(time.RFC3339, string(b.(String)))
-				if err1 == nil && err2 == nil {
-					return t1.After(t2), nil
-				}
+			t1, err1 := time.Parse(time.RFC3339, string(a.(String)))
+			t2, err2 := time.Parse(time.RFC3339, string(b.(String)))
+			if err1 == nil && err2 == nil {
+				return t1.After(t2), nil
 			}
 		}
 		return false, fmt.Errorf("invalid comparison: cannot compare strings which are not date_time")
-	default:
-		return false, fmt.Errorf("invalid comparison: unsupported type: %T", a)
 	}
+
+	return false, nil
 }
 
-// evaluateLessThanEquals evaluates the less than or equals operation by negating
-// the result of evaluating the greater than operation.
+// lte evaluates the "less than or equal" operation. This function expects
+// a binary expression. If this is not the case, this function returns an error.
 func lte(r Rule) (bool, error) {
-	inverse, err := gt(r)
-	if err != nil {
-		return false, err
+	if len(r.Operands) != 2 {
+		return false, fmt.Errorf("invalid number of operands (%d) for operator %s", len(r.Operands), r.Operator)
 	}
-	return !inverse, nil
+
+	a := r.Operands[0]
+	b := r.Operands[1]
+	if (reflect.ValueOf(a).Kind() == reflect.Slice) ||
+		(reflect.ValueOf(b).Kind() == reflect.Slice) ||
+		(reflect.ValueOf(a).Kind() == reflect.Map) ||
+		(reflect.ValueOf(b).Kind() == reflect.Map) {
+		return false, fmt.Errorf("invalid comparison: unsupported types: [%T, %T]", a, b)
+	}
+	if isSameKind(a, b, reflect.Float64) {
+		return float64(a.(Float)) <= float64(b.(Float)), nil
+	}
+	if isSameKind(a, b, reflect.String) {
+		if r.Format == "date_time" {
+			t1, err1 := time.Parse(time.RFC3339, string(a.(String)))
+			t2, err2 := time.Parse(time.RFC3339, string(b.(String)))
+			if err1 == nil && err2 == nil {
+				return t1.Before(t2) || t1.Equal(t2), nil
+			}
+		}
+		return false, fmt.Errorf("invalid comparison: cannot compare strings which are not date_time")
+	}
+
+	return false, nil
 }
 
-// evaluateGreaterThanEquals evaluates the less than or equals operation by negating
-// the result of evaluating the less than operation.
+// gte evaluates the "greater than or equal" operation. This function expects
+// a binary expression. If this is not the case, this function returns an error.
 func gte(r Rule) (bool, error) {
-	inverse, err := lt(r)
-	if err != nil {
-		return false, err
+	if len(r.Operands) != 2 {
+		return false, fmt.Errorf("invalid number of operands (%d) for operator %s", len(r.Operands), r.Operator)
 	}
-	return !inverse, nil
+
+	a := r.Operands[0]
+	b := r.Operands[1]
+	if (reflect.ValueOf(a).Kind() == reflect.Slice) ||
+		(reflect.ValueOf(b).Kind() == reflect.Slice) ||
+		(reflect.ValueOf(a).Kind() == reflect.Map) ||
+		(reflect.ValueOf(b).Kind() == reflect.Map) {
+		return false, fmt.Errorf("invalid comparison: unsupported types: [%T, %T]", a, b)
+	}
+	if isSameKind(a, b, reflect.Float64) {
+		return float64(a.(Float)) >= float64(b.(Float)), nil
+	}
+	if isSameKind(a, b, reflect.String) {
+		if r.Format == "date_time" {
+			t1, err1 := time.Parse(time.RFC3339, string(a.(String)))
+			t2, err2 := time.Parse(time.RFC3339, string(b.(String)))
+			if err1 == nil && err2 == nil {
+				return t1.After(t2) || t1.Equal(t2), nil
+			}
+		}
+		return false, fmt.Errorf("invalid comparison: cannot compare strings which are not date_time")
+	}
+
+	return false, nil
 }
 
 // and accepts a Rule and checks if all of its operands are also of type Rule.

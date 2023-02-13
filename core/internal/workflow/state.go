@@ -1,4 +1,4 @@
-package state
+package workflow
 
 import (
 	"encoding/json"
@@ -15,7 +15,7 @@ type State map[string]Field
 
 func (f *Field) UnmarshalJSON(data []byte) error {
 	type alias Field
-	a := &struct {
+	a := struct {
 		*alias                 // embed alias type; will partially unmarshal
 		Value  json.RawMessage `json:"value,omitempty"`
 	}{

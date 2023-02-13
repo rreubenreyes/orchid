@@ -1,4 +1,4 @@
-package state
+package workflow
 
 import (
 	"testing"
