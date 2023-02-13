@@ -14,81 +14,77 @@ type Field struct {
 type State map[string]Field
 
 func (f *Field) UnmarshalJSON(data []byte) error {
-	var m map[string]any
-	err := json.Unmarshal(data, &m)
-	if err != nil {
+	type alias Field
+	a := &struct {
+		*alias                 // embed alias type; will partially unmarshal
+		Value  json.RawMessage `json:"value,omitempty"`
+	}{
+		alias: (*alias)(f), // this alias shares the address of f
+	}
+	if err := json.Unmarshal(data, &a); err != nil {
 		return err
 	}
 
-	var ok bool
-
-	// check declared type is valid
-	if f.Type, ok = m["type"].(string); !ok {
-		return fmt.Errorf("invalid type: %s", f.Type)
-	}
-
-	// if `nullable` is missing or not boolean, assume it is false
-	if f.Nullable, ok = m["nullable"].(bool); !ok {
-		f.Nullable = false
-	}
-
-	switch f.Type {
-	case "number":
-		if f.Value, ok = m["value"].(float64); !ok {
-			if f.Nullable && f.Value == nil {
-				f.Value = 0
-				return nil
-			}
-
-			f.Value = 0 // set value to expected type
-			return fmt.Errorf("expected number, got %T", m["value"])
+	// handle nullable case where provided Value is null or absent
+	if a.Nullable && (string(a.Value) == "null" || len(a.Value) == 0) {
+		if string(a.Value) == "null" {
+			fmt.Printf("this is the explicit null case")
 		}
+		if len(a.Value) == 0 {
+			fmt.Printf("this is the absent case")
+
+		}
+		f.Value = nil
+
+		return nil
+	}
+
+	// handle non-nullable case where provided Value is null
+	if !a.Nullable && string(a.Value) == "null" {
+		return fmt.Errorf("field is non-nullable, got null")
+	}
+
+	// in all other cases, check type against a.Type accordingly
+	switch a.Type {
+	case "number":
+		var n float64
+		if err := json.Unmarshal(a.Value, &n); err != nil {
+			return fmt.Errorf("expected number, got %s", string(a.Value))
+		}
+		f.Value = n
+
 		return nil
 	case "string":
-		if f.Value, ok = m["initial"].(string); !ok {
-			if f.Nullable && f.Value == nil {
-				f.Value = 0
-				return nil
-			}
-
-			f.Value = ""
-			return fmt.Errorf("expected string, got %T", m["value"])
+		var s string
+		if err := json.Unmarshal(a.Value, &s); err != nil {
+			return fmt.Errorf("expected string, got %s", string(a.Value))
 		}
+		f.Value = s
+
 		return nil
 	case "bool":
-		if f.Value, ok = m["initial"].(bool); !ok {
-			if f.Nullable && f.Value == nil {
-				f.Value = 0
-				return nil
-			}
-
-			f.Value = false
-			return fmt.Errorf("expected bool, got %T", m["value"])
+		var b bool
+		if err := json.Unmarshal(a.Value, &b); err != nil {
+			return fmt.Errorf("expected bool, got %s", string(a.Value))
 		}
+		f.Value = b
+
 		return nil
-
-		// TODO: recursively unmarshal complex fields
 	case "list":
-		if f.Value, ok = m["initial"].([]any); !ok {
-			if f.Nullable && f.Value == nil {
-				f.Value = 0
-				return nil
-			}
-
-			f.Value = nil
-			return fmt.Errorf("expected list, got %T", m["value"])
+		var l []Field
+		if err := json.Unmarshal(a.Value, &l); err != nil {
+			return err
 		}
+		f.Value = l
+
 		return nil
 	case "map":
-		if f.Value, ok = m["initial"].(map[string]any); !ok {
-			if f.Nullable && f.Value == nil {
-				f.Value = 0
-				return nil
-			}
-
-			f.Value = nil
-			return fmt.Errorf("expected map, got %T", m["value"])
+		var m map[string]Field
+		if err := json.Unmarshal(a.Value, &m); err != nil {
+			return err
 		}
+		f.Value = m
+
 		return nil
 	default:
 		return fmt.Errorf("invalid type: %s", f.Type)
