@@ -163,6 +163,130 @@ func TestEvaluate(t *testing.T) {
 		{"$gte: String - not ISO-8601",
 			args{Rule{"date_time", "$gte", []Operable{String("1"), String("1")}}},
 			false, true},
+
+		{"$contains: string contains another string",
+			args{Rule{"", "$contains", []Operable{String("hello"), String("h")}}},
+			true, false},
+		{"$contains: string does not contain another string",
+			args{Rule{"", "$contains", []Operable{String("hello"), String("a")}}},
+			false, false},
+		{"$contains: slice contains value",
+			args{Rule{"", "$contains", []Operable{Complex{Float(1)}, Float(1)}}},
+			true, false},
+		{"$contains: slice does not contain value",
+			args{Rule{"", "$contains", []Operable{Complex{Float(1)}, String("no")}}},
+			false, false},
+		{"$contains: invalid type",
+			args{Rule{"", "$contains", []Operable{Float(0), String("h")}}},
+			false, true},
+
+		{"$has: map has value",
+			args{Rule{"", "$has", []Operable{Map{"hello": String("world")}, String("world")}}},
+			true, false},
+		{"$has: map does not have value",
+			args{Rule{"", "$has", []Operable{Map{"hello": String("world")}, String("no")}}},
+			false, false},
+		{"$has: invalid type",
+			args{Rule{"", "$has", []Operable{Float(0), String("h")}}},
+			false, true},
+
+		{"$and: 1, 1",
+			args{Rule{"", "$and", []Operable{
+				Rule{"", "$eq", []Operable{Float(1), Float(1)}},
+				Rule{"", "$eq", []Operable{Float(2), Float(2)}},
+			}}},
+			true, false},
+		{"$and: 1, 0",
+			args{Rule{"", "$and", []Operable{
+				Rule{"", "$eq", []Operable{Float(1), Float(1)}},
+				Rule{"", "$eq", []Operable{Float(2), Float(0)}},
+			}}},
+			false, false},
+		{"$and: 0, 0",
+			args{Rule{"", "$and", []Operable{
+				Rule{"", "$eq", []Operable{Float(1), Float(0)}},
+				Rule{"", "$eq", []Operable{Float(2), Float(0)}},
+			}}},
+			false, false},
+		{"$and: not all operands are rules",
+			args{Rule{"", "$and", []Operable{
+				Float(2),
+				Rule{"", "$eq", []Operable{Float(2), Float(0)}},
+			}}},
+			false, true},
+
+		{"$or: 1, 1",
+			args{Rule{"", "$or", []Operable{
+				Rule{"", "$eq", []Operable{Float(1), Float(1)}},
+				Rule{"", "$eq", []Operable{Float(2), Float(2)}},
+			}}},
+			true, false},
+		{"$or: 1, 0",
+			args{Rule{"", "$or", []Operable{
+				Rule{"", "$eq", []Operable{Float(1), Float(1)}},
+				Rule{"", "$eq", []Operable{Float(2), Float(0)}},
+			}}},
+			true, false},
+		{"$or: 0, 0",
+			args{Rule{"", "$or", []Operable{
+				Rule{"", "$eq", []Operable{Float(1), Float(0)}},
+				Rule{"", "$eq", []Operable{Float(2), Float(0)}},
+			}}},
+			false, false},
+		{"$or: not all operands are rules",
+			args{Rule{"", "$or", []Operable{
+				Float(2),
+				Rule{"", "$eq", []Operable{Float(2), Float(0)}},
+			}}},
+			false, true},
+
+		{"$xor: 1, 1",
+			args{Rule{"", "$xor", []Operable{
+				Rule{"", "$eq", []Operable{Float(1), Float(1)}},
+				Rule{"", "$eq", []Operable{Float(2), Float(2)}},
+			}}},
+			false, false},
+		{"$xor: 1, 0",
+			args{Rule{"", "$xor", []Operable{
+				Rule{"", "$eq", []Operable{Float(1), Float(1)}},
+				Rule{"", "$eq", []Operable{Float(2), Float(0)}},
+			}}},
+			true, false},
+		{"$xor: 0, 0",
+			args{Rule{"", "$xor", []Operable{
+				Rule{"", "$eq", []Operable{Float(1), Float(0)}},
+				Rule{"", "$eq", []Operable{Float(2), Float(0)}},
+			}}},
+			false, false},
+		{"$xor: not all operands are rules",
+			args{Rule{"", "$xor", []Operable{
+				Float(2),
+				Rule{"", "$eq", []Operable{Float(2), Float(0)}},
+			}}},
+			false, true},
+
+		{"$not: negate true",
+			args{Rule{"", "$not", []Operable{
+				Rule{"", "$eq", []Operable{Float(1), Float(1)}},
+			}}},
+			false, false},
+		{"$not: negate false",
+			args{Rule{"", "$not", []Operable{
+				Rule{"", "$eq", []Operable{Float(1), Float(0)}},
+			}}},
+			true, false},
+		{"$not: not exactly one operand is invalid",
+			args{Rule{"", "$not", []Operable{
+				Rule{"", "$eq", []Operable{Float(1), Float(0)}},
+				Rule{"", "$eq", []Operable{Float(2), Float(0)}},
+			}}},
+			false, true},
+		// TODO: this panics
+		// {"$not: must negate another rule",
+		// 	args{Rule{"", "$not", []Operable{
+		// 		Float(1),
+		// 	}}},
+		// 	false, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

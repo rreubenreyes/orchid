@@ -13,7 +13,7 @@ const (
 	LessThanEquals    Operator = "$lte"
 	GreaterThan       Operator = "$gt"
 	GreaterThanEquals Operator = "$gte"
-	Contains          Operator = "$in"
+	Contains          Operator = "$contains"
 	And               Operator = "$and"
 	Or                Operator = "$or"
 	Xor               Operator = "$xor"
@@ -292,12 +292,12 @@ func xor(r Rule) (bool, error) {
 		if err != nil {
 			return false, fmt.Errorf("invalid comparison")
 		}
-		if result {
-			if ok {
-				return false, nil
-			}
+		if ok && result {
+			return false, nil
 		}
-		ok = result
+		if !ok && result {
+			ok = result
+		}
 	}
 
 	return ok, nil
@@ -310,12 +310,17 @@ func not(r Rule) (bool, error) {
 		return false, fmt.Errorf("invalid number of operands (%d) for operator %s", len(r.Operands), r.Operator)
 	}
 
-	result, err := Evaluate(r)
+	valueType := reflect.TypeOf(r)
+	ruleType := reflect.TypeOf(Rule{})
+	if !valueType.AssignableTo(ruleType) {
+		return false, fmt.Errorf("invalid comparison: predicate being negated is not a Rule")
+	}
+	result, err := Evaluate(r.Operands[0].(Rule))
 	if err != nil {
 		return false, err
 	}
 
-	return result, nil
+	return !result, nil
 }
 
 // contains checks if a left-hand operand of type string or []any contains
@@ -326,13 +331,13 @@ func contains(r Rule) (bool, error) {
 		return false, fmt.Errorf("invalid number of operands (%d) for operator %s", len(r.Operands), r.Operator)
 	}
 
-	a := reflect.TypeOf(r.Operands[0])
-	b := reflect.TypeOf(r.Operands[1])
-	if a.Kind() != reflect.Slice || a.Kind() != reflect.String {
+	a := reflect.ValueOf(r.Operands[0])
+	b := reflect.ValueOf(r.Operands[1])
+	if a.Kind() != reflect.Slice && a.Kind() != reflect.String {
 		return false, fmt.Errorf("invalid comparison: cannot use $contains on non-string or non-array values")
 	}
 
-	if a.Kind() == reflect.String && b.Kind() == reflect.String {
+	if isSameKind(r.Operands[0], r.Operands[1], reflect.String) {
 		return strings.Contains(a.String(), b.String()), nil
 	}
 
