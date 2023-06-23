@@ -33,7 +33,7 @@ TL;DR:
 
 ## Appendix
 
-<a name="dags" />
+<a id="dags" />
 
 ### DAGs
 
@@ -57,6 +57,8 @@ In Orchid, __workflows__ are defined as _[directed acyclic graphs](https://en.wi
 ```
 
 ### State
+
+<a id="state" />
 
 ```json
 {
