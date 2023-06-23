@@ -18,11 +18,11 @@ TL;DR:
 └──────────┘       └───────────┘
 ```
 
-* Workflows expressed as [DAGs](dags)
+* Workflows expressed as [DAGs](#dags)
     * Each node in the DAG can be associated with a process, which does _something_
         * "Internal" processes are executed by the workflow evaluator host, and logic is expressed directly in the DAG definition
         * "External" process are executed by some external process which interfaces with the DAG
-* Workflows persist [immutable state](state)
+* Workflows persist [immutable state](#state)
     * While state cannot be mutated, new iterations of the state are generated each time an event must effect the state
     * State can be represented as a doubly linked list
     * Each iteration of a workflow references one state snapshot
@@ -32,8 +32,6 @@ TL;DR:
     * As events are written to the log, a "state updater" receives those events, derives the correct state update from the event payload, and produces a state snapshot. 
 
 ## Appendix
-
-<a id="dags" />
 
 ### DAGs
 
@@ -57,8 +55,6 @@ In Orchid, __workflows__ are defined as _[directed acyclic graphs](https://en.wi
 ```
 
 ### State
-
-<a id="state" />
 
 ```json
 {
