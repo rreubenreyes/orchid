@@ -53,7 +53,9 @@ func detectCycle(dag DAG, node string, visited, recStack map[string]bool, cycle 
 	return false
 }
 
-func assertAcyclic(dag DAG) error {
+// validateAcyclic uses a depth-first traversal to check that
+// a DAG does not contain cycles.
+func validateAcyclic(dag DAG) error {
 	visited := make(map[string]bool)
 	recStack := make(map[string]bool)
 	cycle := make([]string, 0)
@@ -70,41 +72,25 @@ func assertAcyclic(dag DAG) error {
 	return nil
 }
 
-func assertNotEmptyRuleSet(k string, rs []Rule) error {
-	if len(rs) <= 0 {
-		return fmt.Errorf(`node .%s must contain at least one rule`, k)
+// validateNoIsolated iterates over all outgoing edges in a DAG.
+// It checks that all nodes in a DAG, besides the "start" node,
+// have at least one incoming edge.
+func validateNoIsolated(dag DAG) error {
+	vertices := map[string]struct{}{"start": {}}
+	for _, node := range dag {
+		for _, rule := range node.Rules {
+			if rule.Next != "" {
+				vertices[rule.Next] = struct{}{}
+			}
+		}
 	}
 
-	return nil
-}
-
-func assertNotConflictingTraversal(i int, k string, r Rule) error {
-	if (r.Next != "" && r.Wait) ||
-		(r.Next != "" && r.End) ||
-		(r.End && r.Wait) ||
-		(r.Next == "" && !r.Wait && !r.End) {
-		return fmt.Errorf(`node .%s.rules[%d] must uniquely contain one of ("next", "wait", "and")`, k, i)
-	}
-
-	return nil
-}
-
-func assertValidTraversal(dag DAG, i int, k string, r Rule) error {
-	_, ok := dag[r.Next]
-	if !ok {
-		return fmt.Errorf(`node .%s.rules[%d] traverses to invalid vertex %s`, k, i, r.Next)
-	}
-
-	return nil
-}
-
-func assertNoIsolatedNodes(dag DAG, visited map[string]struct{}) error {
-	if len(visited) != len(dag) {
-		var isolated []string
+	if len(vertices) != len(dag) {
+		isolated := []string{}
 		for k := range dag {
-			_, ok := visited[k]
+			_, ok := vertices[k]
 			if !ok {
-				isolated = append(isolated, fmt.Sprintf(".%s", k))
+				isolated = append(isolated, k)
 			}
 		}
 		return fmt.Errorf("DAG contains isolated nodes: [%s]", strings.Join(isolated, ","))
@@ -113,63 +99,97 @@ func assertNoIsolatedNodes(dag DAG, visited map[string]struct{}) error {
 	return nil
 }
 
-func Validate(data string) error {
-	var dag DAG
-
-	err := json.Unmarshal([]byte(data), &dag)
-	if err != nil {
-		return errors.New("invalid DAG definition")
+// validateRulesNotEmpty checks that the given Node contains
+// at least one Rule.
+func validateRulesNotEmpty(k string, n Node) error {
+	if len(n.Rules) <= 0 {
+		return fmt.Errorf(`node .%s must contain at least one rule`, k)
 	}
 
-	// DAG cannot be empty
+	return nil
+}
+
+// validateValidTraversal checks the following:
+//   - A Rule cannot specify a conflicting traversal; that is, a Rule
+//     must specify _exactly one_ of Next, Wait, or End.
+//   - A Rule cannot specify a traversal to a nonexistent node.
+func validateValidTraversal(dag DAG, i int, k string, r Rule) error {
+	if (r.Next != "" && r.Wait) ||
+		(r.Next != "" && r.End) ||
+		(r.End && r.Wait) ||
+		(r.Next == "" && !r.Wait && !r.End) {
+		return fmt.Errorf(`node .%s.rules[%d] must uniquely contain one of ("next", "wait", "and")`, k, i)
+	}
+
+	if r.Next == "" {
+		return nil
+	}
+
+	_, ok := dag[r.Next]
+	if !ok {
+		return fmt.Errorf(`node .%s.rules[%d] traverses to invalid vertex %s`, k, i, r.Next)
+	}
+
+	return nil
+}
+
+// validateDAGNotEmpty checks that a given DAG is not an empty map.
+func validateDAGNotEmpty(dag DAG) error {
 	if len(dag) <= 0 {
 		return errors.New(`DAG must contain at least one node`)
 	}
 
-	// DAG must contain a node called "start"
+	return nil
+}
+
+// validateDAGNotEmpty checks that a given DAG contains a node called "start".
+func validateContainsStartNode(dag DAG) error {
 	_, ok := dag["start"]
 	if !ok {
 		return errors.New(`DAG must contain a node called "start"`)
 	}
 
-	// except "start", all vertices must have at least one incoming edge;
-	// keep track of all vertices which have been visited
-	visited := map[string]struct{}{"start": {}}
+	return nil
+}
+
+func validate(dag DAG) error {
+	if err := validateDAGNotEmpty(dag); err != nil {
+		return err
+	}
+	if err := validateContainsStartNode(dag); err != nil {
+		return err
+	}
+
 	for nk, nv := range dag {
-		// all user-provided nodes must contain at least one rule
-		err = assertNotEmptyRuleSet(nk, nv.Rules)
-		if err != nil {
+		if err := validateRulesNotEmpty(nk, nv); err != nil {
 			return err
 		}
 
 		for i, rule := range nv.Rules {
-			err = assertNotConflictingTraversal(i, nk, rule)
-			if err != nil {
+			if err := validateValidTraversal(dag, i, nk, rule); err != nil {
 				return err
-			}
-
-			// all rules which specify a traversal must specify a valid vertex
-			if rule.Next != "" {
-				err = assertValidTraversal(dag, i, nk, rule)
-				if err != nil {
-					return err
-				}
-
-				visited[rule.Next] = struct{}{}
 			}
 		}
 	}
 
-	// DAG must not contain isolated nodes
-	err = assertNoIsolatedNodes(dag, visited)
-	if err != nil {
+	if err := validateAcyclic(dag); err != nil {
 		return err
 	}
-
-	err = assertAcyclic(dag)
-	if err != nil {
+	if err := validateNoIsolated(dag); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func FromJSON(data string) (DAG, error) {
+	var dag DAG
+	if err := json.Unmarshal([]byte(data), &dag); err != nil {
+		return nil, errors.New("invalid DAG definition")
+	}
+	if err := validate(dag); err != nil {
+		return nil, err
+	}
+
+	return dag, nil
 }

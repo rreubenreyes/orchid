@@ -2,7 +2,7 @@ package dag
 
 import "testing"
 
-func TestValidate(t *testing.T) {
+func TestFromJSON(t *testing.T) {
 	type args struct {
 		data string
 	}
@@ -132,8 +132,8 @@ func TestValidate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := Validate(tt.args.data); (err != nil) != tt.wantErr {
-				t.Errorf("%s: Validate() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			if _, err := FromJSON(tt.args.data); (err != nil) != tt.wantErr {
+				t.Errorf("%s: FromJSON() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			}
 		})
 	}
