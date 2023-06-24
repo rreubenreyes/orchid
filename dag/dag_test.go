@@ -22,6 +22,33 @@ func TestValidate(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "simplest possible graph",
+			args: args{data: `{
+				"start": {
+					"rules": [
+						{"end": true }
+					]
+				}
+			}`},
+			wantErr: false,
+		},
+		{
+			name: "simplest possible graph with at least one traversal",
+			args: args{data: `{
+				"start": {
+					"rules": [
+						{ "next": "A" }
+					]
+				},
+				"A": {
+					"rules": [
+						{"end": true }
+					]
+				}
+			}`},
+			wantErr: false,
+		},
+		{
 			name:    `some node contains less than one rule`,
 			args:    args{data: `{"start": {"rules": []}}`},
 			wantErr: true,
@@ -38,22 +65,33 @@ func TestValidate(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: `DAG contains a "_wait" node`,
+			name: `DAG specifies "next" and "end" simultaneously`,
 			args: args{data: `{
-				"_wait": {
+				"start": {
 					"rules": [
-						{ "next": "end" }
+						{ "next": "end", "end": true }
 					]
 				}
 			}`},
 			wantErr: true,
 		},
 		{
-			name: `DAG contains an "_end" node`,
+			name: `DAG specifies "next" and "wait" simultaneously`,
 			args: args{data: `{
-				"_end": {
+				"start": {
 					"rules": [
-						{ "next": "end" }
+						{ "next": "end", "end": true }
+					]
+				}
+			}`},
+			wantErr: true,
+		},
+		{
+			name: `DAG specifies "wait" and "end" simultaneously`,
+			args: args{data: `{
+				"start": {
+					"rules": [
+						{ "wait": true, "end": true }
 					]
 				}
 			}`},
@@ -75,11 +113,27 @@ func TestValidate(t *testing.T) {
 			}`},
 			wantErr: true,
 		},
+		{
+			name: "DAG contains isolated nodes",
+			args: args{data: `{
+				"start": {
+					"rules": [
+						{ "end": true }
+					]
+				},
+				"A": {
+					"rules": [
+						{ "next": "start" }
+					]
+				}
+			}`},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if err := Validate(tt.args.data); (err != nil) != tt.wantErr {
-				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("%s: Validate() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			}
 		})
 	}
