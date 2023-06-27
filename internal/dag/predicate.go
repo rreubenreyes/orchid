@@ -2,33 +2,33 @@ package dag
 
 import (
 	"errors"
-	"fmt"
 	"strings"
+
+	"github.com/rreubenreyes/orchid/internal/state"
 )
 
-type SimplePredicate struct {
-	Variable    string             `json:"variable"`
-	BoolEq      *bool              `json:"bool_eq"`
-	StrEq       *string            `json:"str_eq"`
-	NumEq       *float64           `json:"num_eq"`
-	NumLT       *float64           `json:"num_lt"`
-	NumLTE      *float64           `json:"num_lte"`
-	NumGT       *float64           `json:"num_gt"`
-	NumGTE      *float64           `json:"num_gte"`
-	StrContains *string            `json:"str_contains"`
-	And         *[]SimplePredicate `json:"and"`
-	Or          *[]SimplePredicate `json:"or"`
-	Not         *SimplePredicate   `json:"not"`
+type Predicate struct {
+	Variable    string       `json:"variable"`
+	BoolEq      *bool        `json:"bool_eq"`
+	StrEq       *string      `json:"str_eq"`
+	NumEq       *float64     `json:"num_eq"`
+	NumLT       *float64     `json:"num_lt"`
+	NumLTE      *float64     `json:"num_lte"`
+	NumGT       *float64     `json:"num_gt"`
+	NumGTE      *float64     `json:"num_gte"`
+	StrContains *string      `json:"str_contains"`
+	And         *[]Predicate `json:"and"`
+	Or          *[]Predicate `json:"or"`
+	Not         *Predicate   `json:"not"`
 }
 
-type SimplePredicate2 SimplePredicate
+func (p Predicate) Eval(s state.State) (bool, error) {
+	v, err := s.ValueAtPath(p.Variable)
+	if err != nil {
+		return false, err
+	}
 
-func (p SimplePredicate) Eval(s map[string]any) (bool, error) {
 	if p.BoolEq != nil {
-		v, ok := s[p.Variable]
-		if !ok {
-			return false, fmt.Errorf("variable %s is not present in state", v)
-		}
 		switch v := v.(type) {
 		case bool:
 			return v == *p.BoolEq, nil
@@ -38,10 +38,6 @@ func (p SimplePredicate) Eval(s map[string]any) (bool, error) {
 	}
 
 	if p.StrEq != nil {
-		v, ok := s[p.Variable]
-		if !ok {
-			return false, fmt.Errorf("variable %s is not present in state", v)
-		}
 		switch v := v.(type) {
 		case string:
 			return v == *p.StrEq, nil
@@ -51,10 +47,6 @@ func (p SimplePredicate) Eval(s map[string]any) (bool, error) {
 	}
 
 	if p.NumEq != nil {
-		v, ok := s[p.Variable]
-		if !ok {
-			return false, fmt.Errorf("variable %s is not present in state", v)
-		}
 		switch v := v.(type) {
 		case float64:
 			return v == *p.NumEq, nil
@@ -64,10 +56,6 @@ func (p SimplePredicate) Eval(s map[string]any) (bool, error) {
 	}
 
 	if p.NumLT != nil {
-		v, ok := s[p.Variable]
-		if !ok {
-			return false, fmt.Errorf("variable %s is not present in state", v)
-		}
 		switch v := v.(type) {
 		case float64:
 			return v < *p.NumEq, nil
@@ -77,10 +65,6 @@ func (p SimplePredicate) Eval(s map[string]any) (bool, error) {
 	}
 
 	if p.NumLTE != nil {
-		v, ok := s[p.Variable]
-		if !ok {
-			return false, fmt.Errorf("variable %s is not present in state", v)
-		}
 		switch v := v.(type) {
 		case float64:
 			return v <= *p.NumEq, nil
@@ -90,10 +74,6 @@ func (p SimplePredicate) Eval(s map[string]any) (bool, error) {
 	}
 
 	if p.NumGT != nil {
-		v, ok := s[p.Variable]
-		if !ok {
-			return false, fmt.Errorf("variable %s is not present in state", v)
-		}
 		switch v := v.(type) {
 		case float64:
 			return v > *p.NumEq, nil
@@ -103,10 +83,6 @@ func (p SimplePredicate) Eval(s map[string]any) (bool, error) {
 	}
 
 	if p.NumGTE != nil {
-		v, ok := s[p.Variable]
-		if !ok {
-			return false, fmt.Errorf("variable %s is not present in state", v)
-		}
 		switch v := v.(type) {
 		case float64:
 			return v >= *p.NumEq, nil
@@ -116,10 +92,6 @@ func (p SimplePredicate) Eval(s map[string]any) (bool, error) {
 	}
 
 	if p.StrContains != nil {
-		v, ok := s[p.Variable]
-		if !ok {
-			return false, fmt.Errorf("variable %s is not present in state", v)
-		}
 		switch v := v.(type) {
 		case string:
 			return strings.Contains(v, *p.StrContains), nil
