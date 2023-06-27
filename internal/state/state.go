@@ -1,113 +1,153 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/reflect/protoreflect"
+	"github.com/linkedin/goavro/v2"
 )
 
 type State struct {
-	messageType protoreflect.MessageType
-	value       protoreflect.Message
+	codec *goavro.Codec
+	value map[string]any
 }
 
-func (s *State) Init(mt protoreflect.MessageType) {
-	if s.messageType != nil {
+func parseJSONPath(path string) ([]string, error) {
+	// remove leading dot (.)
+	if len(path) > 0 && path[0] == '.' {
+		path = path[1:]
+	}
+
+	// split the path by dot (.)
+	ppath := make([]string, 0)
+	ppath = append(ppath, splitPath(path)...)
+
+	return ppath, nil
+}
+
+func splitPath(path string) []string {
+	var parts []string
+
+	current := ""
+	inBracket := false
+	for _, c := range path {
+		switch c {
+		case '[':
+			inBracket = true
+		case ']':
+			inBracket = false
+		}
+
+		if c == '.' && !inBracket {
+			parts = append(parts, current)
+			current = ""
+		} else {
+			current += string(c)
+		}
+	}
+
+	parts = append(parts, current)
+
+	return parts
+}
+
+func (s *State) New(data []byte) error {
+	if s.codec != nil {
 		fmt.Printf("state already initialized with message type")
 	}
 
-	s.messageType = mt
+	// validate schema represents a map or record type
+	var m map[string]any
+	err := json.Unmarshal(data, &m)
+	if err != nil {
+		return err
+	}
+
+	t, ok := m["type"]
+	if !ok {
+		return errors.New("schema is invalid: could not determine top-level field type")
+	}
+
+	switch t := t.(type) {
+	case string:
+		if t != "map" && t != "record" {
+			return errors.New("schema is invalid: top-level field must be a map")
+		}
+	default:
+		return errors.New("schema is invalid: could not determine top-level field type")
+	}
+
+	// marshal into Avro codec
+	codec, err := goavro.NewCodec(string(data))
+	if err != nil {
+		return err
+	}
+
+	s.codec = codec
+
+	return nil
 }
 
-func (s State) MessageDescriptor() protoreflect.MessageDescriptor {
-	return s.messageType.Descriptor()
+func (s State) CanonicalSchema() string {
+	return s.codec.CanonicalSchema()
 }
 
-func (s State) Value() protoreflect.Message {
+func (s State) Value() map[string]any {
 	return s.value
 }
 
-func (s State) ValueAtPath(path string) (any, error) {
-	pathArr := strings.Split(path, ".")
+func (s *State) ValueAtPath(path string) (any, error) {
+	var jsonData []byte
+	var err error
 
-	var curPath string
-	var travelledPath []string
-	var fd protoreflect.FieldDescriptor
-	var cur any
-	var next any
-
-	cur = s.value
-	for len(pathArr) > 0 {
-		curPath = pathArr[0]
-		travelledPath = append(travelledPath, pathArr[0])
-		pathArr = pathArr[1:]
-
-		switch cur := cur.(type) {
-		case protoreflect.Message:
-			fds := cur.Descriptor().Fields()
-
-			if !cur.Has(fd) {
-				return nil, fmt.Errorf("path %s not present in state", strings.Join(travelledPath, "."))
-			}
-
-			fd := fds.ByJSONName(curPath)
-			if fd.Kind() == protoreflect.BoolKind {
-				next = cur.Get(fd).Bool()
-			}
-			if fd.Kind() == protoreflect.EnumKind {
-				next = cur.Get(fd).Enum()
-			}
-			if fd.Kind() == protoreflect.Int32Kind ||
-				fd.Kind() == protoreflect.Int64Kind ||
-				fd.Kind() == protoreflect.Sint32Kind ||
-				fd.Kind() == protoreflect.Sint64Kind ||
-				fd.Kind() == protoreflect.Sfixed32Kind ||
-				fd.Kind() == protoreflect.Sfixed64Kind {
-				next = cur.Get(fd).Int()
-			}
-			if fd.Kind() == protoreflect.Uint32Kind ||
-				fd.Kind() == protoreflect.Uint64Kind ||
-				fd.Kind() == protoreflect.Fixed32Kind ||
-				fd.Kind() == protoreflect.Fixed64Kind {
-				next = cur.Get(fd).Uint()
-			}
-			if fd.Kind() == protoreflect.FloatKind ||
-				fd.Kind() == protoreflect.DoubleKind {
-				next = cur.Get(fd).Float()
-			}
-			if fd.Kind() == protoreflect.StringKind {
-				next = cur.Get(fd).String()
-			}
-			if fd.Kind() == protoreflect.BytesKind {
-				next = cur.Get(fd).Bytes()
-			}
-			if fd.Kind() == protoreflect.MessageKind ||
-				fd.Kind() == protoreflect.GroupKind {
-				next = cur.Get(fd).Message()
-			}
-
-			next = cur.Get(fd)
-		}
-
-		cur = next
+	jsonData, err = json.Marshal(s.value)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, nil
+	var result any
+	err = json.Unmarshal(jsonData, &result)
+	if err != nil {
+		return nil, err
+	}
+
+	ppath, err := parseJSONPath(path)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, p := range ppath {
+		switch m := result.(type) {
+		case map[string]any:
+			result, ok := m[p]
+			if !ok {
+				return nil, fmt.Errorf("path '%s' does not exist", path)
+			}
+			return result, nil
+		default:
+			return nil, fmt.Errorf("path '%s' does not exist", path)
+		}
+	}
+
+	return result, nil
 }
 
-func (s *State) Update(data []byte) (protoreflect.Message, error) {
-	if s.messageType == nil {
+func (s *State) Update(data []byte) (map[string]any, error) {
+	if s.codec == nil {
 		return nil, errors.New("state not initialized")
 	}
 
-	m := s.messageType.New().Interface()
-	err := protojson.Unmarshal(data, m)
-	if err != nil || !m.ProtoReflect().IsValid() {
-		return nil, errors.New("data does not match message format")
+	native, _, err := s.codec.NativeFromTextual(data)
+	if err != nil {
+		return nil, err
 	}
 
-	return m.ProtoReflect(), nil
+	switch native := native.(type) {
+	case map[string]any:
+		s.value = native
+		return s.value, nil
+	default:
+		return nil, errors.New("provided value did not unmarshal into a Go map")
+	}
 }
