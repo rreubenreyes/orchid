@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/linkedin/goavro/v2"
 )
@@ -13,6 +14,10 @@ type State struct {
 	value map[string]any
 }
 
+type pathPart struct {
+	Value any
+}
+
 func parseJSONPath(path string) ([]string, error) {
 	// remove leading dot (.)
 	if len(path) > 0 && path[0] == '.' {
@@ -20,13 +25,17 @@ func parseJSONPath(path string) ([]string, error) {
 	}
 
 	// split the path by dot (.)
-	ppath := make([]string, 0)
-	ppath = append(ppath, splitPath(path)...)
+	var ppath []string
+	sp, err := splitPath(path)
+	if err != nil {
+		return nil, err
+	}
+	ppath = append(ppath, sp...)
 
 	return ppath, nil
 }
 
-func splitPath(path string) []string {
+func splitPath(path string) ([]string, error) {
 	var parts []string
 
 	current := ""
@@ -34,22 +43,49 @@ func splitPath(path string) []string {
 	for _, c := range path {
 		switch c {
 		case '[':
-			inBracket = true
+			if !inBracket {
+				if current != "" {
+					parts = append(parts, current)
+					current = ""
+				}
+				inBracket = true
+			} else {
+				current += string(c)
+			}
 		case ']':
-			inBracket = false
-		}
-
-		if c == '.' && !inBracket {
-			parts = append(parts, current)
-			current = ""
-		} else {
+			if inBracket {
+				inBracket = false
+				if current != "" {
+					index, err := strconv.Atoi(current)
+					if err == nil {
+						parts = append(parts, fmt.Sprintf("%d", index))
+					} else {
+						return nil, err
+					}
+					current = ""
+				}
+			} else {
+				current += string(c)
+			}
+		case '.':
+			if !inBracket {
+				if current != "" {
+					parts = append(parts, current)
+					current = ""
+				}
+			} else {
+				current += string(c)
+			}
+		default:
 			current += string(c)
 		}
 	}
 
-	parts = append(parts, current)
+	if current != "" {
+		parts = append(parts, current)
+	}
 
-	return parts
+	return parts, nil
 }
 
 func (s *State) New(data []byte) error {
@@ -71,7 +107,7 @@ func (s *State) New(data []byte) error {
 
 	switch t := t.(type) {
 	case string:
-		if t != "map" && t != "record" {
+		if t != "record" {
 			return errors.New("schema is invalid: top-level field must be a map")
 		}
 	default:
@@ -98,33 +134,30 @@ func (s State) Value() map[string]any {
 }
 
 func (s *State) ValueAtPath(path string) (any, error) {
-	var jsonData []byte
-	var err error
-
-	jsonData, err = json.Marshal(s.value)
-	if err != nil {
-		return nil, err
-	}
-
-	var result any
-	err = json.Unmarshal(jsonData, &result)
-	if err != nil {
-		return nil, err
-	}
-
 	ppath, err := parseJSONPath(path)
 	if err != nil {
 		return nil, err
 	}
 
+	result := any(s.value)
+	var ok bool
 	for _, p := range ppath {
-		switch m := result.(type) {
+		switch s := result.(type) {
 		case map[string]any:
-			result, ok := m[p]
+			result, ok = s[p]
 			if !ok {
 				return nil, fmt.Errorf("path '%s' does not exist", path)
 			}
-			return result, nil
+		case []any:
+			i, err := strconv.Atoi(p)
+			if err != nil {
+				return nil, err
+			}
+
+			if len(s) < i+1 {
+				return nil, fmt.Errorf("path '%s' does not exist", path)
+			}
+			result = s[i]
 		default:
 			return nil, fmt.Errorf("path '%s' does not exist", path)
 		}

@@ -1,4 +1,4 @@
-package main
+package state
 
 import (
 	"reflect"
@@ -22,7 +22,6 @@ func TestState_ValueAtPath(t *testing.T) {
 		want    any
 		wantErr bool
 	}{
-		// TODO: Add test cases.
 		{
 			name: "basic example",
 			fields: fields{
@@ -31,6 +30,17 @@ func TestState_ValueAtPath(t *testing.T) {
 				},
 			},
 			args:    args{path: ".foo"},
+			want:    "bar",
+			wantErr: false,
+		},
+		{
+			name: "basic example with square brackets",
+			fields: fields{
+				value: map[string]any{
+					"foo": []any{"bar"},
+				},
+			},
+			args:    args{path: ".foo[0]"},
 			want:    "bar",
 			wantErr: false,
 		},
