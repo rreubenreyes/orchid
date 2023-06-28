@@ -88,39 +88,49 @@ func splitPath(path string) ([]string, error) {
 	return parts, nil
 }
 
-func (s *State) New(data []byte) error {
-	if s.codec != nil {
-		fmt.Printf("state already initialized with message type")
-	}
-
+func New(data []byte) (State, error) {
 	// validate schema represents a map or record type
+	var s State
 	var m map[string]any
 	err := json.Unmarshal(data, &m)
 	if err != nil {
-		return err
+		return s, err
 	}
 
 	t, ok := m["type"]
 	if !ok {
-		return errors.New("schema is invalid: could not determine top-level field type")
+		return s, errors.New("schema is invalid: could not determine top-level field type")
 	}
 
 	switch t := t.(type) {
 	case string:
 		if t != "record" {
-			return errors.New("schema is invalid: top-level field must be a map")
+			return s, errors.New("schema is invalid: top-level field must be a map")
 		}
 	default:
-		return errors.New("schema is invalid: could not determine top-level field type")
+		return s, errors.New("schema is invalid: could not determine top-level field type")
 	}
 
 	// marshal into Avro codec
 	codec, err := goavro.NewCodec(string(data))
 	if err != nil {
-		return err
+		return s, err
 	}
 
-	s.codec = codec
+	err = s.SetCodec(codec)
+	if err != nil {
+		return s, err
+	}
+
+	return s, nil
+}
+
+func (s *State) SetCodec(c *goavro.Codec) error {
+	if s.codec != nil {
+		return errors.New("codec already initialized")
+	}
+
+	s.codec = c
 
 	return nil
 }
