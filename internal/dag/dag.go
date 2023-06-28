@@ -17,14 +17,19 @@ type Rule struct {
 	End  bool   `json:"end"`
 }
 
-func FromJSON(data string) (DAG, error) {
-	var dag DAG
+func (d *DAG) UnmarshalJSON(data []byte) error {
+	type alias DAG
+	dag := alias{}
 	if err := json.Unmarshal([]byte(data), &dag); err != nil {
-		return nil, errors.New("invalid DAG definition")
-	}
-	if err := validate(dag); err != nil {
-		return nil, err
+		return errors.New("invalid DAG definition")
 	}
 
-	return dag, nil
+	dd := DAG(dag)
+	if err := validate(dd); err != nil {
+		return err
+	}
+
+	*d = dd
+
+	return nil
 }

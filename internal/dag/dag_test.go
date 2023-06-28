@@ -2,39 +2,44 @@ package dag
 
 import "testing"
 
-func TestFromJSON(t *testing.T) {
+func TestDAG_UnmarshalJSON(t *testing.T) {
 	type args struct {
-		data string
+		data []byte
 	}
 	tests := []struct {
 		name    string
+		d       *DAG
 		args    args
 		wantErr bool
 	}{
 		{
 			name:    "data is empty",
-			args:    args{data: ""},
+			d:       &DAG{},
+			args:    args{data: []byte("")},
 			wantErr: true,
 		},
 		{
 			name:    "DAG is empty",
-			args:    args{data: "{}"},
+			d:       &DAG{},
+			args:    args{data: []byte("{}")},
 			wantErr: true,
 		},
 		{
 			name: "simplest possible graph",
-			args: args{data: `{
+			d:    &DAG{},
+			args: args{data: []byte(`{
 				"start": {
 					"rules": [
 						{"end": true }
 					]
 				}
-			}`},
+			}`)},
 			wantErr: false,
 		},
 		{
 			name: "simplest possible graph with at least one traversal",
-			args: args{data: `{
+			d:    &DAG{},
+			args: args{data: []byte(`{
 				"start": {
 					"rules": [
 						{ "next": "A" }
@@ -45,61 +50,67 @@ func TestFromJSON(t *testing.T) {
 						{"end": true }
 					]
 				}
-			}`},
+			}`)},
 			wantErr: false,
 		},
 		{
 			name:    `some node contains less than one rule`,
-			args:    args{data: `{"start": {"rules": []}}`},
+			d:       &DAG{},
+			args:    args{data: []byte(`{"start": {"rules": []}}`)},
 			wantErr: true,
 		},
 		{
 			name: `DAG does not contain a "start" node`,
-			args: args{data: `{
+			d:    &DAG{},
+			args: args{data: []byte(`{
 				"not_start": {
 					"rules": [
 						{ "next": "end" }
 					]
 				}
-			}`},
+			}`)},
 			wantErr: true,
 		},
 		{
 			name: `DAG specifies "next" and "end" simultaneously`,
-			args: args{data: `{
+			d:    &DAG{},
+			args: args{data: []byte(`{
 				"start": {
 					"rules": [
 						{ "next": "end", "end": true }
 					]
 				}
-			}`},
+			}`)},
 			wantErr: true,
 		},
 		{
 			name: `DAG specifies "next" and "wait" simultaneously`,
-			args: args{data: `{
+			d:    &DAG{},
+			args: args{data: []byte(`{
 				"start": {
 					"rules": [
 						{ "next": "end", "end": true }
 					]
 				}
-			}`},
+			}`)},
 			wantErr: true,
 		},
 		{
 			name: `DAG specifies "wait" and "end" simultaneously`,
-			args: args{data: `{
+			d:    &DAG{},
+			args: args{data: []byte(`{
 				"start": {
 					"rules": [
 						{ "wait": true, "end": true }
 					]
 				}
-			}`},
+			}`)},
 			wantErr: true,
 		},
 		{
 			name: "graph is cyclic",
-			args: args{data: `{
+			d:    &DAG{},
+			args: args{data: []byte(`{
 				"start": {
 					"rules": [
 						{ "next": "A" }
@@ -110,12 +121,13 @@ func TestFromJSON(t *testing.T) {
 						{ "next": "start" }
 					]
 				}
-			}`},
+			}`)},
 			wantErr: true,
 		},
 		{
 			name: "DAG contains isolated nodes",
-			args: args{data: `{
+			d:    &DAG{},
+			args: args{data: []byte(`{
 				"start": {
 					"rules": [
 						{ "end": true }
@@ -126,14 +138,14 @@ func TestFromJSON(t *testing.T) {
 						{ "next": "start" }
 					]
 				}
-			}`},
+			}`)},
 			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if _, err := FromJSON(tt.args.data); (err != nil) != tt.wantErr {
-				t.Errorf("%s: FromJSON() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			if err := tt.d.UnmarshalJSON(tt.args.data); (err != nil) != tt.wantErr {
+				t.Errorf("%s: DAG.UnmarshalJSON() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			}
 		})
 	}
