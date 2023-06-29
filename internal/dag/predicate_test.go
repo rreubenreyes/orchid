@@ -12,6 +12,7 @@ var (
 	FALSE = false
 	STR   = "bar"
 	FLOAT = 1.0
+	ANY   = any("bar")
 )
 
 func mustInitState(d []byte, initial []byte) state.State {
@@ -41,20 +42,36 @@ func fooState(t string) []byte {
 	}`, t))
 }
 
+func fooStateComplex(t string) []byte {
+	return []byte(fmt.Sprintf(`{
+		"type": "record",
+		"name": "MyRecord",
+		"fields": [
+			{
+				"name": "foo",
+				"type": %s
+			}
+		]
+	}`, t))
+}
+
 func TestPredicate_Eval(t *testing.T) {
 	type fields struct {
-		Variable    string
-		BoolEq      *bool
-		StrEq       *string
-		NumEq       *float64
-		NumLT       *float64
-		NumLTE      *float64
-		NumGT       *float64
-		NumGTE      *float64
-		StrContains *string
-		And         *[]Predicate
-		Or          *[]Predicate
-		Not         *Predicate
+		Variable       string
+		BoolEq         *bool
+		StrEq          *string
+		NumEq          *float64
+		NumLT          *float64
+		NumLTE         *float64
+		NumGT          *float64
+		NumGTE         *float64
+		ContainsSubstr *string
+		IsSubstrOf     *string
+		Contains       *any
+		IsElementOf    *[]any
+		And            *[]Predicate
+		Or             *[]Predicate
+		Not            *Predicate
 	}
 	type args struct {
 		s state.State
@@ -91,7 +108,67 @@ func TestPredicate_Eval(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "NumEq passing",
+			name: "IsSubstrOf passing",
+			fields: fields{
+				Variable:   ".foo",
+				IsSubstrOf: &STR,
+			},
+			args: args{
+				s: mustInitState(fooState("string"), []byte(`{"foo": "b"}`)),
+			},
+			want:    true,
+			wantErr: false,
+		},
+		{
+			name: "ContainsSubstr passing",
+			fields: fields{
+				Variable:       ".foo",
+				ContainsSubstr: &STR,
+			},
+			args: args{
+				s: mustInitState(fooState("string"), []byte(`{"foo": "barrrr"}`)),
+			},
+			want:    true,
+			wantErr: false,
+		},
+		{
+			name: "NumEq (float) passing",
+			fields: fields{
+				Variable: ".foo",
+				NumEq:    &FLOAT,
+			},
+			args: args{
+				s: mustInitState(fooState("float"), []byte(`{"foo": 1.0}`)),
+			},
+			want:    true,
+			wantErr: false,
+		},
+		{
+			name: "NumEq (double) passing",
+			fields: fields{
+				Variable: ".foo",
+				NumEq:    &FLOAT,
+			},
+			args: args{
+				s: mustInitState(fooState("double"), []byte(`{"foo": 1.0}`)),
+			},
+			want:    true,
+			wantErr: false,
+		},
+		{
+			name: "NumEq (int) passing",
+			fields: fields{
+				Variable: ".foo",
+				NumEq:    &FLOAT,
+			},
+			args: args{
+				s: mustInitState(fooState("int"), []byte(`{"foo": 1}`)),
+			},
+			want:    true,
+			wantErr: false,
+		},
+		{
+			name: "NumEq (long) passing",
 			fields: fields{
 				Variable: ".foo",
 				NumEq:    &FLOAT,
@@ -102,30 +179,61 @@ func TestPredicate_Eval(t *testing.T) {
 			want:    true,
 			wantErr: false,
 		},
+		{
+			name: "IsElementOf passing",
+			fields: fields{
+				Variable:    ".foo",
+				IsElementOf: &[]any{1, "foo", nil, true},
+			},
+			args: args{
+				s: mustInitState(fooState("long"), []byte(`{"foo": 1}`)),
+			},
+			want:    true,
+			wantErr: false,
+		},
+		{
+			name: "Contains",
+			fields: fields{
+				Variable: ".foo",
+				Contains: &ANY,
+			},
+			args: args{
+				s: mustInitState(fooStateComplex(`{
+					"type": "array", "fields": {
+						"type": [null, int, string, boolean]
+					}
+				}`), []byte(`{"foo": "barrrr"}`)),
+			},
+			want:    true,
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := Predicate{
-				Variable:    tt.fields.Variable,
-				BoolEq:      tt.fields.BoolEq,
-				StrEq:       tt.fields.StrEq,
-				NumEq:       tt.fields.NumEq,
-				NumLT:       tt.fields.NumLT,
-				NumLTE:      tt.fields.NumLTE,
-				NumGT:       tt.fields.NumGT,
-				NumGTE:      tt.fields.NumGTE,
-				StrContains: tt.fields.StrContains,
-				And:         tt.fields.And,
-				Or:          tt.fields.Or,
-				Not:         tt.fields.Not,
+				Variable:       tt.fields.Variable,
+				BoolEq:         tt.fields.BoolEq,
+				StrEq:          tt.fields.StrEq,
+				NumEq:          tt.fields.NumEq,
+				NumLT:          tt.fields.NumLT,
+				NumLTE:         tt.fields.NumLTE,
+				NumGT:          tt.fields.NumGT,
+				NumGTE:         tt.fields.NumGTE,
+				IsSubstrOf:     tt.fields.IsSubstrOf,
+				ContainsSubstr: tt.fields.ContainsSubstr,
+				IsElementOf:    tt.fields.IsElementOf,
+				Contains:       tt.fields.Contains,
+				And:            tt.fields.And,
+				Or:             tt.fields.Or,
+				Not:            tt.fields.Not,
 			}
 			got, err := p.Eval(tt.args.s)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Predicate.Eval() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("%s: Predicate.Eval() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 				return
 			}
 			if got != tt.want {
-				t.Errorf("Predicate.Eval() = %v, want %v", got, tt.want)
+				t.Errorf("%s: Predicate.Eval() = %v, want %v", tt.name, got, tt.want)
 			}
 		})
 	}
