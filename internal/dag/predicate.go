@@ -32,7 +32,7 @@ func safeIsNil(i any) bool {
 		int16, int32, int64, float32, float64:
 		return false
 	default:
-		return reflect.ValueOf(v).IsNil()
+		return v == nil
 	}
 }
 

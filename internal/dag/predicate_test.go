@@ -42,19 +42,6 @@ func fooState(t string) []byte {
 	}`, t))
 }
 
-func fooStateComplex(t string) []byte {
-	return []byte(fmt.Sprintf(`{
-		"type": "record",
-		"name": "MyRecord",
-		"fields": [
-			{
-				"name": "foo",
-				"type": %s
-			}
-		]
-	}`, t))
-}
-
 func TestPredicate_Eval(t *testing.T) {
 	type fields struct {
 		Variable       string
@@ -227,21 +214,33 @@ func TestPredicate_Eval(t *testing.T) {
 			want:    true,
 			wantErr: false,
 		},
-		// {
-		// 	name: "Contains",
-		// 	fields: fields{
-		// 		Variable: ".foo",
-		// 		Contains: &ANY,
-		// 	},
-		// 	args: args{
-		// 		s: mustInitState(fooStateComplex(`{
-		// 			"type": "array",
-		// 			"items": ["null", "int", "string", "boolean"]
-		// 		}`), []byte(`{"foo": "barrrr"}`)),
-		// 	},
-		// 	want:    true,
-		// 	wantErr: false,
-		// },
+		{
+			name: "Contains",
+			fields: fields{
+				Variable: ".foo",
+				Contains: &ANY,
+			},
+			args: args{
+				s: mustInitState([]byte(`{
+					"type": "record",
+					"name": "MyRecord",
+					"fields": [
+						{
+							"name": "foo",
+							"type": {
+								"type": "array",
+								"items": [
+									"null",
+									"string"
+								]
+							}
+						}
+					]
+				}`), []byte(`{"foo": ["hi"]}`)),
+			},
+			want:    true,
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
