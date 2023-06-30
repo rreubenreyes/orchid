@@ -2,6 +2,7 @@ package dag
 
 import (
 	"errors"
+	"reflect"
 	"strings"
 
 	"github.com/rreubenreyes/orchid/internal/state"
@@ -23,6 +24,16 @@ type Predicate struct {
 	And            *[]Predicate `json:"and"`
 	Or             *[]Predicate `json:"or"`
 	Not            *Predicate   `json:"not"`
+}
+
+func safeIsNil(i any) bool {
+	switch v := i.(type) {
+	case bool, string, int, int8,
+		int16, int32, int64, float32, float64:
+		return false
+	default:
+		return reflect.ValueOf(v).IsNil()
+	}
 }
 
 func (p Predicate) Eval(s state.State) (bool, error) {
@@ -178,15 +189,26 @@ func (p Predicate) Eval(s state.State) (bool, error) {
 	}
 
 	if p.IsElementOf != nil {
-		for _, n := range *p.IsElementOf {
-			switch v := v.(type) {
-			case string:
-				return strings.Contains(*p.IsSubstrOf, v), nil
+		vv := reflect.ValueOf(v)
+		for _, pp := range *p.IsElementOf {
+			pv := reflect.ValueOf(pp)
+			if safeIsNil(v) && safeIsNil(pp) {
+				return true, nil
 			}
-
-			return false, nil
-
+			if vv.CanInt() && pv.CanInt() {
+				return vv.Int() == pv.Int(), nil
+			}
+			if vv.CanFloat() && pv.CanFloat() {
+				return vv.Float() == pv.Float(), nil
+			}
+			if vv.Kind() == reflect.String && pv.Kind() == reflect.String {
+				return vv.String() == pv.String(), nil
+			}
+			if vv.Kind() == reflect.Bool && pv.Kind() == reflect.Bool {
+				return vv.Bool() == pv.Bool(), nil
+			}
 		}
+		return false, nil
 	}
 
 	return false, errors.New("invalid predicate")
