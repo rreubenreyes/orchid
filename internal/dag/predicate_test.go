@@ -31,14 +31,13 @@ func mustInitState(d []byte, initial []byte) state.State {
 
 func fooState(t string) []byte {
 	return []byte(fmt.Sprintf(`{
-		"type": "record",
-		"name": "MyRecord",
-		"fields": [
-			{
-				"name": "foo",
+		"title": "MyRecord",
+		"type": "object",
+		"properties": {
+			"foo": {
 				"type": "%s"
 			}
-		]
+		}
 	}`, t))
 }
 
@@ -125,31 +124,7 @@ func TestPredicate_Eval(t *testing.T) {
 				NumEq:    &FLOAT,
 			},
 			args: args{
-				s: mustInitState(fooState("float"), []byte(`{"foo": 1.0}`)),
-			},
-			want:    true,
-			wantErr: false,
-		},
-		{
-			name: "NumEq (double) passing",
-			fields: fields{
-				Variable: ".foo",
-				NumEq:    &FLOAT,
-			},
-			args: args{
-				s: mustInitState(fooState("double"), []byte(`{"foo": 1.0}`)),
-			},
-			want:    true,
-			wantErr: false,
-		},
-		{
-			name: "NumEq (int) passing",
-			fields: fields{
-				Variable: ".foo",
-				NumEq:    &FLOAT,
-			},
-			args: args{
-				s: mustInitState(fooState("int"), []byte(`{"foo": 1}`)),
+				s: mustInitState(fooState("number"), []byte(`{"foo": 1.0}`)),
 			},
 			want:    true,
 			wantErr: false,
@@ -161,7 +136,7 @@ func TestPredicate_Eval(t *testing.T) {
 				NumEq:    &FLOAT,
 			},
 			args: args{
-				s: mustInitState(fooState("long"), []byte(`{"foo": 1}`)),
+				s: mustInitState(fooState("number"), []byte(`{"foo": 1}`)),
 			},
 			want:    true,
 			wantErr: false,
@@ -170,10 +145,10 @@ func TestPredicate_Eval(t *testing.T) {
 			name: "IsElementOf passing for numeric",
 			fields: fields{
 				Variable:    ".foo",
-				IsElementOf: &[]any{1, "foo", nil, true},
+				IsElementOf: &[]any{1.0, "foo", nil, true},
 			},
 			args: args{
-				s: mustInitState(fooState("long"), []byte(`{"foo": 1}`)),
+				s: mustInitState(fooState("number"), []byte(`{"foo": 1}`)),
 			},
 			want:    true,
 			wantErr: false,
@@ -182,7 +157,7 @@ func TestPredicate_Eval(t *testing.T) {
 			name: "IsElementOf passing for string",
 			fields: fields{
 				Variable:    ".foo",
-				IsElementOf: &[]any{1, "foo", nil, true},
+				IsElementOf: &[]any{1.0, "foo", nil, true},
 			},
 			args: args{
 				s: mustInitState(fooState("string"), []byte(`{"foo": "foo"}`)),
@@ -194,7 +169,7 @@ func TestPredicate_Eval(t *testing.T) {
 			name: "IsElementOf passing for bool",
 			fields: fields{
 				Variable:    ".foo",
-				IsElementOf: &[]any{1, "foo", nil, true},
+				IsElementOf: &[]any{1.0, "foo", nil, true},
 			},
 			args: args{
 				s: mustInitState(fooState("boolean"), []byte(`{"foo": true}`)),
@@ -214,6 +189,7 @@ func TestPredicate_Eval(t *testing.T) {
 			want:    true,
 			wantErr: false,
 		},
+		// TODO: this test fails; need to implement Contains
 		{
 			name: "Contains",
 			fields: fields{
@@ -222,20 +198,16 @@ func TestPredicate_Eval(t *testing.T) {
 			},
 			args: args{
 				s: mustInitState([]byte(`{
-					"type": "record",
-					"name": "MyRecord",
-					"fields": [
-						{
-							"name": "foo",
-							"type": {
-								"type": "array",
-								"items": [
-									"null",
-									"string"
-								]
+					"title": "MyRecord",
+					"type": "object",
+					"properties": {
+						"foo": {
+							"type": "array",
+							"items": {
+								"type": "string"
 							}
 						}
-					]
+					}
 				}`), []byte(`{"foo": ["hi"]}`)),
 			},
 			want:    true,

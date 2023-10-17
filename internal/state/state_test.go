@@ -4,13 +4,13 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/linkedin/goavro/v2"
+	"github.com/xeipuuv/gojsonschema"
 )
 
 func TestState_ValueAtPath(t *testing.T) {
 	type fields struct {
-		codec *goavro.Codec
-		value map[string]any
+		schema *gojsonschema.Schema
+		value  map[string]any
 	}
 	type args struct {
 		path string
@@ -48,8 +48,8 @@ func TestState_ValueAtPath(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &State{
-				codec: tt.fields.codec,
-				value: tt.fields.value,
+				schema: tt.fields.schema,
+				value:  tt.fields.value,
 			}
 			got, err := s.ValueAtPath(tt.args.path)
 			if (err != nil) != tt.wantErr {

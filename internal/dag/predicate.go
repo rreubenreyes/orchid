@@ -195,10 +195,7 @@ func (p Predicate) Eval(s state.State) (bool, error) {
 			if safeIsNil(v) && safeIsNil(pp) {
 				return true, nil
 			}
-			if vv.CanInt() && pv.CanInt() {
-				return vv.Int() == pv.Int(), nil
-			}
-			if vv.CanFloat() && pv.CanFloat() {
+			if vv.Kind() == reflect.Float64 && pv.Kind() == reflect.Float64 {
 				return vv.Float() == pv.Float(), nil
 			}
 			if vv.Kind() == reflect.String && pv.Kind() == reflect.String {

@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/linkedin/goavro/v2"
+	"github.com/xeipuuv/gojsonschema"
 )
 
 type State struct {
-	codec *goavro.Codec
-	value map[string]any
+	schema *gojsonschema.Schema
+	value  map[string]any
 }
 
 type pathPart struct {
@@ -97,27 +97,28 @@ func New(data []byte) (State, error) {
 		return s, err
 	}
 
-	t, ok := m["type"]
-	if !ok {
-		return s, errors.New("schema is invalid: could not determine top-level field type")
-	}
+	// t, ok := m["type"]
+	// if !ok {
+	// 	return s, errors.New("schema is invalid: could not determine top-level field type")
+	// }
 
-	switch t := t.(type) {
-	case string:
-		if t != "record" {
-			return s, errors.New("schema is invalid: top-level field must be a map")
-		}
-	default:
-		return s, errors.New("schema is invalid: could not determine top-level field type")
-	}
+	// switch t := t.(type) {
+	// case string:
+	// 	if t != "record" {
+	// 		return s, errors.New("schema is invalid: top-level field must be a map")
+	// 	}
+	// default:
+	// 	return s, errors.New("schema is invalid: could not determine top-level field type")
+	// }
 
 	// marshal into Avro codec
-	codec, err := goavro.NewCodec(string(data))
+	loader := gojsonschema.NewBytesLoader(data)
+	schema, err := gojsonschema.NewSchema(loader)
 	if err != nil {
 		return s, err
 	}
 
-	err = s.SetCodec(codec)
+	err = s.SetSchema(schema)
 	if err != nil {
 		return s, err
 	}
@@ -125,18 +126,18 @@ func New(data []byte) (State, error) {
 	return s, nil
 }
 
-func (s *State) SetCodec(c *goavro.Codec) error {
-	if s.codec != nil {
-		return errors.New("codec already initialized")
+func (s *State) SetSchema(schema *gojsonschema.Schema) error {
+	if s.schema != nil {
+		return errors.New("schema already initialized")
 	}
 
-	s.codec = c
+	s.schema = schema
 
 	return nil
 }
 
-func (s State) CanonicalSchema() string {
-	return s.codec.CanonicalSchema()
+func (s State) Schema() *gojsonschema.Schema {
+	return s.schema
 }
 
 func (s State) Value() map[string]any {
@@ -177,11 +178,25 @@ func (s *State) ValueAtPath(path string) (any, error) {
 }
 
 func (s *State) Update(data []byte) (map[string]any, error) {
-	if s.codec == nil {
+	if s.schema == nil {
 		return nil, errors.New("state not initialized")
 	}
 
-	native, _, err := s.codec.NativeFromTextual(data)
+	loader := gojsonschema.NewBytesLoader(data)
+	result, err := s.schema.Validate(loader)
+	if err != nil {
+		return nil, err
+	}
+	if !result.Valid() {
+		var errs []error
+		for _, e := range result.Errors() {
+			errs = append(errs, errors.New(e.String()))
+		}
+		return nil, errors.Join(errs...)
+	}
+
+	var native any
+	err = json.Unmarshal(data, &native)
 	if err != nil {
 		return nil, err
 	}
