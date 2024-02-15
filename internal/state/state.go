@@ -2,210 +2,121 @@ package state
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"strconv"
+	"strings"
 
+	jsonpatch "github.com/evanphx/json-patch"
+	"github.com/jmoiron/jsonq"
 	"github.com/xeipuuv/gojsonschema"
 )
 
+// Client functionality
 type State struct {
 	schema *gojsonschema.Schema
-	value  map[string]any
+	raw    string
 }
 
-type pathPart struct {
-	Value any
-}
-
-func parseJSONPath(path string) ([]string, error) {
-	// remove leading dot (.)
-	if len(path) > 0 && path[0] == '.' {
-		path = path[1:]
-	}
-
-	// split the path by dot (.)
-	var ppath []string
-	sp, err := splitPath(path)
-	if err != nil {
-		return nil, err
-	}
-	ppath = append(ppath, sp...)
-
-	return ppath, nil
-}
-
-func splitPath(path string) ([]string, error) {
-	var parts []string
-
-	current := ""
-	inBracket := false
-	for _, c := range path {
-		switch c {
-		case '[':
-			if !inBracket {
-				if current != "" {
-					parts = append(parts, current)
-					current = ""
-				}
-				inBracket = true
-			} else {
-				current += string(c)
-			}
-		case ']':
-			if inBracket {
-				inBracket = false
-				if current != "" {
-					index, err := strconv.Atoi(current)
-					if err == nil {
-						parts = append(parts, fmt.Sprintf("%d", index))
-					} else {
-						return nil, err
-					}
-					current = ""
-				}
-			} else {
-				current += string(c)
-			}
-		case '.':
-			if !inBracket {
-				if current != "" {
-					parts = append(parts, current)
-					current = ""
-				}
-			} else {
-				current += string(c)
-			}
-		default:
-			current += string(c)
-		}
-	}
-
-	if current != "" {
-		parts = append(parts, current)
-	}
-
-	return parts, nil
-}
-
-func New(data []byte) (State, error) {
-	// validate schema represents a map or record type
-	var s State
-	var m map[string]any
-	err := json.Unmarshal(data, &m)
-	if err != nil {
-		return s, err
-	}
-
-	// t, ok := m["type"]
-	// if !ok {
-	// 	return s, errors.New("schema is invalid: could not determine top-level field type")
-	// }
-
-	// switch t := t.(type) {
-	// case string:
-	// 	if t != "record" {
-	// 		return s, errors.New("schema is invalid: top-level field must be a map")
-	// 	}
-	// default:
-	// 	return s, errors.New("schema is invalid: could not determine top-level field type")
-	// }
-
-	// marshal into Avro codec
-	loader := gojsonschema.NewBytesLoader(data)
+func NewState(s string, initRaw []byte) (*State, error) {
+	// validate the schema
+	loader := gojsonschema.NewStringLoader(s)
 	schema, err := gojsonschema.NewSchema(loader)
 	if err != nil {
-		return s, err
+		return nil, err
 	}
 
-	err = s.SetSchema(schema)
+	// ensure the root is an object
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(initRaw), &data); err != nil {
+		return nil, err
+	}
+
+	// ensure the schema is strict
+	patch, err := jsonpatch.DecodePatch([]byte(`{
+		"op": "add",
+		"path", "/additionalProperties",
+		"value": false
+	}`))
 	if err != nil {
-		return s, err
+		panic(err)
 	}
 
-	return s, nil
+	init, err := patch.Apply([]byte(initRaw))
+	if err != nil {
+		panic(err)
+	}
+
+	// validate the initial state object
+	initLoader := gojsonschema.NewStringLoader(string(init))
+	result, err := schema.Validate(initLoader)
+	if err != nil {
+		fmt.Printf("error validating schema")
+		return nil, err
+	}
+
+	if result.Valid() {
+		fmt.Printf("initial state is valid")
+	} else {
+		fmt.Printf("initial state is not valid. see errors:\n")
+		for _, desc := range result.Errors() {
+			fmt.Printf("- %s\n", desc)
+		}
+	}
+
+	state := &State{
+		schema: schema,
+		raw:    string(init),
+	}
+
+	return state, nil
 }
 
-func (s *State) SetSchema(schema *gojsonschema.Schema) error {
-	if s.schema != nil {
-		return errors.New("schema already initialized")
+// TEST: State values can be retrieved.
+func (s State) Get(path ...string) (any, error) {
+	data := map[string]any{}
+	dec := json.NewDecoder(strings.NewReader(s.raw))
+	dec.Decode(&data)
+	jq := jsonq.NewQuery(data)
+
+	val, err := jq.Interface(path...)
+	if err != nil {
+		return nil, err
 	}
 
-	s.schema = schema
+	return val, nil
+}
+
+// TEST: State updates are expressed as jsonpatch-compatible operations.
+// TEST: State updates are validated after performing a jsonpatch.
+func (s *State) Set(val any, path ...string) error {
+	// all calls to Set specify a replace jsonpatch op
+	patchSpec := make(map[string]any)
+	patchSpec["op"] = "replace"
+	patchSpec["path"] = "/" + strings.Join(path, "/")
+	patchSpec["value"] = val
+
+	patchData, err := json.Marshal(patchSpec)
+	if err != nil {
+		return err
+	}
+
+	patch, err := jsonpatch.DecodePatch(patchData)
+	if err != nil {
+		return err
+	}
+
+	result, err := patch.Apply([]byte(s.raw))
+	if err != nil {
+		return err
+	}
+
+	// make sure updated state is valid
+	resultLoader := gojsonschema.NewStringLoader(string(result))
+	_, err = s.schema.Validate(resultLoader)
+	if err != nil {
+		return err
+	}
+
+	s.raw = string(result)
 
 	return nil
-}
-
-func (s State) Schema() *gojsonschema.Schema {
-	return s.schema
-}
-
-func (s State) Value() map[string]any {
-	return s.value
-}
-
-func (s *State) ValueAtPath(path string) (any, error) {
-	ppath, err := parseJSONPath(path)
-	if err != nil {
-		return nil, err
-	}
-
-	result := any(s.value)
-	var ok bool
-	for _, p := range ppath {
-		switch s := result.(type) {
-		case map[string]any:
-			result, ok = s[p]
-			if !ok {
-				return nil, fmt.Errorf("path '%s' does not exist", path)
-			}
-		case []any:
-			i, err := strconv.Atoi(p)
-			if err != nil {
-				return nil, err
-			}
-
-			if len(s) < i+1 {
-				return nil, fmt.Errorf("path '%s' does not exist", path)
-			}
-			result = s[i]
-		default:
-			return nil, fmt.Errorf("path '%s' does not exist", path)
-		}
-	}
-
-	return result, nil
-}
-
-func (s *State) Update(data []byte) (map[string]any, error) {
-	if s.schema == nil {
-		return nil, errors.New("state not initialized")
-	}
-
-	loader := gojsonschema.NewBytesLoader(data)
-	result, err := s.schema.Validate(loader)
-	if err != nil {
-		return nil, err
-	}
-	if !result.Valid() {
-		var errs []error
-		for _, e := range result.Errors() {
-			errs = append(errs, errors.New(e.String()))
-		}
-		return nil, errors.Join(errs...)
-	}
-
-	var native any
-	err = json.Unmarshal(data, &native)
-	if err != nil {
-		return nil, err
-	}
-
-	switch native := native.(type) {
-	case map[string]any:
-		s.value = native
-		return s.value, nil
-	default:
-		return nil, errors.New("provided value did not unmarshal into a Go map")
-	}
 }
